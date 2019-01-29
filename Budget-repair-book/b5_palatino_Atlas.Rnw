@@ -23,11 +23,12 @@ knitr::opts_chunk$set(fig.width=11.000, fig.height=7.00,
 )
 library(showtext)
 library(sysfonts)
-
-font.add("helvet", 
-         regular = "C:/Program Files (x86)/MiKTeX 2.9/fonts/type1/urw/helvetic/uhvr8a.pfb", 
-         bold = "C:/Program Files (x86)/MiKTeX 2.9/fonts/type1/urw/helvetic/uhvb8a.pfb", 
-         italic = "C:/Program Files (x86)/MiKTeX 2.9/fonts/type1/urw/helvetic/uhvro8a.pfb")
+library(grattanCharts)
+grattanCharts::setup_knitr_for_grattex()
+# font.add("helvet", 
+#          regular = "C:/Program Files (x86)/MiKTeX 2.9/fonts/type1/urw/helvetic/uhvr8a.pfb", 
+#          bold = "C:/Program Files (x86)/MiKTeX 2.9/fonts/type1/urw/helvetic/uhvb8a.pfb", 
+#          italic = "C:/Program Files (x86)/MiKTeX 2.9/fonts/type1/urw/helvetic/uhvro8a.pfb")
 
 every_nth <- function(x, n, start = 0){
   x <- as.character(x)
@@ -39,9 +40,9 @@ step_every_nth <- function(x, n, start = 0){
   x[seq(from = start, to = length(x), by = n)] <- paste0("\n",  x[seq(from = start, to = length(x), by = n)])
   x
 }
-
+library(grattanCharts)
 ggplot2::update_geom_defaults("text", list(family = "helvet"))
-grplot <- function(...) grattan::grplot(...) + 
+grplot <- function(...) grattanCharts::grplot(...) + 
   theme_hugh(base_family = "helvet", base_size = 23) + theme(axis.line.x = element_line(), axis.line.y = element_line())
 @
 
@@ -424,8 +425,9 @@ read.table(text="Year	Terms of trade	Structural balance	Cyclical	Underlying cash
       geom_hline(yintercept = 0) + 
       geom_bar(stat = "identity", position = "dodge") + 
       scale_fill_manual(values = c(rev(gpal(3)), gpal(6)[1])) + 
-      geom_text(data = data_frame(Year = 2017.5, y = 4, fill = factor("Underlying\ncash\nbalance", levels = levels(.$fill))), 
-                mapping = aes(x = Year, y = y, fill = fill), 
+      geom_text(data = data_frame(Year = 2017.5, y = 4,
+                                  fill = factor("Underlying\ncash\nbalance", levels = levels(.$fill))), 
+                mapping = aes(x = Year, y = y), 
                 hjust = 0.5, 
                 vjust = "inward",
                 family = "helvet",
@@ -927,6 +929,7 @@ read.table(text="Year of forecast	2003	2004	2005	2006	2007	2008	2009	2010	2011	2
 \clearpage
 
 <<FISCAL-Figure10-wrapped, out.height="11in", fig.height=11>>=
+if (file.exists("./Fiscal-challenges/Figure10.xlsx"))
 read_excel("./Fiscal-challenges/Figure10.xlsx", sheet = 1) %>%
   gather(colour, y, -Year, factor_key = TRUE) %>%
   filter(!grepl("fiscal.balance", colour)) %>%
@@ -1557,8 +1560,7 @@ NT	15%	25%	-7%	23%	12%	11%
                      limits = c(-50, 60)) + 
   guides(fill = guide_legend("State\n", ncol = 2)) + 
   theme(axis.title.x = element_blank(), 
-        legend.position = c(0,1), 
-        legend.justification = c(0,1), 
+        legend.position = c(0,1),
         legend.title = element_text(size = 20, lineheight = 0.25, face = "bold"),
         legend.justification = c(0, 1), 
         legend.margin = unit(0.001, "npc"))
