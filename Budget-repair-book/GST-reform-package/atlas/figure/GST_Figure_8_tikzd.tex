@@ -1,0 +1,30 @@
+\documentclass[tikz]{standalone}
+\usepackage[scaled]{helvet}
+  \renewcommand{\familydefault}{\sfdefault}
+
+
+\definecolor{Orange}{HTML/cmyk}{F68B33/0,0.435,0.7927,0.0353}
+\definecolor{DarkOrange}{HTML/cmyk}{D4582A/0,0.5849,0.8019,0.1686}
+\definecolor{OrangeBackground}{RGB}{254,240,222}  % for boxes
+\definecolor{Color1}{RGB}{255,224,127}
+\definecolor{Color2}{RGB}{255,195,90}
+\definecolor{Color3}{RGB}{246,139,51}
+\definecolor{Color4}{RGB}{212,88,42}
+\definecolor{Color5}{RGB}{160,34,38}
+\definecolor{Color6}{RGB}{98,18,20}
+\definecolor{theGrey}{HTML}{6A737B}
+\definecolor{AuthorPage}{RGB}{160,34,38}
+\definecolor{AuthorGrey}{RGB}{174,174,174}
+
+\begin{document}
+\begin{tikzpicture}[x=380pt,y=250pt]
+\tikzstyle{every node}=[font=\small, text width = 2cm]
+    % Draw axes
+    \draw [<->,thick] (0,1) node (yaxis) [above] {Benefits (\$)}
+        |- (1,0) node (xaxis) [below] {Income earned (\$)};
+ 	% Draw lines
+ 	\path[draw, thick, color=Color3] (0, 0.7) -- (0.2, 0.7) -- (0.7, 0);
+ 	\path[draw, thick, color=Color5] (0, 0.9) -- (0.2, 0.9) -- (0.9, 0);
+    % Draw two intersecting lines
+\end{tikzpicture}
+\end{document}

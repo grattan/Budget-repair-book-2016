@@ -1,0 +1,10 @@
+base
+knitr
+foreign
+ggplot2
+scales
+grattan
+data.table
+tidyr
+dplyr
+magrittr

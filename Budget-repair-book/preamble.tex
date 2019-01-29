@@ -1,0 +1,216 @@
+\usepackage{booktabs}
+\usepackage{amsmath}
+\usepackage{siunitx} % for decimal points in tables
+\sisetup{detect-all} % to ensure helvetica is used
+\usepackage{longtable} % session info
+\usepackage{tabularx}  % boxed tables
+%\usepackage{flushend}  % for flushed columns at end of chapters % too dangerous!
+%    \raggedend  %% turn off except when manual
+\usepackage{makecell}
+\usepackage{multirow}
+\usepackage{subcaption}
+\captionsetup[subfigure]{skip=0pt, position=top, list=no, justification=centering, labelsep=space, labelfont=bf, font={bf,small,theGrey}}
+% to prevent legend moving
+\usepackage[noadjust]{marginnote}
+\usepackage{grfext}
+\usepackage{ragged2e}
+%\raggedright
+\usepackage[normalem]{ulem}  % for uline
+\PrependGraphicsExtensions*{.pdf}
+\usepackage{enotez}
+\usepackage{ocgx}
+\usepackage{enumitem}
+
+\DeclareInstance{enotez-list}{section}{paragraph}{heading=\addchap{#1}}
+\setenotez{list-style=section, split=section}
+
+\let\originalfootnote\footnote
+\let\footnote\endnote
+% for a footnote that must be a footnote (not an endnote)
+\newcommand{\FOOTNOTE}[1]{\originalfootnote{#1}}
+\renewcommand*{\thefootnote}{\textrm{\fnsymbol{footnote}}}
+
+
+\providecommand{\stopifendnote}[1]{}
+
+\newcommand{\TBD}[1]{\colorbox{yellow}{#1}}
+\newcommand{\defi}[1]{\textbf{#1}}
+\newcommand{\DEVIATION}[1]{}
+
+\newcommand{\taxabbrevT}{\textsc{t}}
+\newcommand{\taxabbrevt}{t}
+\newcommand{\taxabbrevE}{\textsc{e}}
+\newcommand{\TEE}{\textsc{tee}}
+\newcommand{\TTE}{\textsc{tte}}
+\newcommand{\EET}{\textsc{eet}}
+\newcommand{\ETT}{\textsc{ett}}
+\newcommand{\ttE}{tt\textsc{e}}
+\newcommand{\ttt}{\textsc{ttt}}
+\newcommand{\TtE}{\textsc{t}t\textsc{e}}
+
+%
+% wrong kerning?
+\newcommand{\ATO}{A\/TO}
+%
+
+% Allow figure captions to run into margins
+\usepackage{ifoddpage}
+\newlength\fullwidth\fullwidth=\textwidth \advance\fullwidth by \marginparwidth
+\advance\fullwidth by \marginparsep
+
+\newlength\extraWd
+\setlength\extraWd{\dimexpr\marginparwidth+\marginparsep\relax}
+%\captionsetup{margin={0cm,-\extraWd}}
+
+% bold headers in tabularx
+\newcommand{\tblHead}  [2][c]{\bfseries\begin{tabular}[#1]{@{}l@{}}#2\end{tabular}}
+\newcommand{\tblHeadR} [2][c]{\bfseries\begin{tabular}[#1]{@{}>{\raggedleft}p{\linewidth}@{}}#2\end{tabular}}
+\newcommand{\tblHeadRm}[2][c]{\bfseries\begin{tabular}[#1]{@{}>{\raggedleft}m{\linewidth}@{}}#2\end{tabular}}
+\newcommand{\tblHeadRb}[2][c]{\bfseries\begin{tabular}[#1]{@{}>{\raggedleft}b{\linewidth}@{}}#2\end{tabular}}
+\newcommand{\tblHeadRR}[2][c]{\bfseries\begin{tabular}[#1]{@{}>{\raggedleft}p{\linewidth}@{}}#2\end{tabular}}
+\newcommand{\tblHeadL} [2][c]{\bfseries\begin{tabular}[#1]{@{}>{\raggedright}p{\linewidth}@{}}#2\end{tabular}}
+% right-aligned for tables
+\def\barr{\begingroup\renewcommand{\arraystretch}{1}\begin{tabular}[c]{>{\bfseries}r}}%
+\def\earr{\end{tabular}\endgroup}
+% left aligned for tables
+\def\barl{\begingroup\begin{tabular}[c]{>{\bfseries}l}}%
+\def\earl{\end{tabular}\endgroup}
+
+\newcommand{\tblHeadVC}[1]{\bfseries\begin{tabular}[c]{@{}>{\raggedleft}m{\linewidth}@{}}#1\end{tabular}}
+\newcommand{\tblHeadVCL}[1]{\bfseries\begin{tabular}[c]{@{}>{\raggedright}m{\linewidth}@{}}#1\end{tabular}}
+\newcommand{\tblHeadBCL}[1]{\bfseries\begin{tabular}[b]{@{}>{\raggedright}b{\linewidth}@{}}#1\end{tabular}}
+
+\newcommand{\tblHeadVCHL}[1]{\barr\textbf{#1}\earr}
+\newcolumntype{R}{>{\raggedleft\arraybackslash}X}
+\newcolumntype{C}{>{\centering\arraybackslash}X}
+\newcolumntype{Y}{>{\raggedleft\arraybackslash}X}
+
+\newlength\Origarrayrulewidth
+\newlength\Origbelowrulesep
+\newlength\Origaboverulesep
+
+% horizontal rule equivalent to \cline but with 2pt width
+% for super acccumulation benefits table
+\newcommand{\ClineDarkOrange}[1]{%
+ \noalign{\global\setlength\Origarrayrulewidth{\arrayrulewidth}}%
+ \noalign{\global\setlength\Origbelowrulesep{\belowrulesep}}%
+ \noalign{\global\setlength\Origaboverulesep{\aboverulesep}}%
+ \noalign{\global\setlength\belowrulesep{0pt}}%
+ \noalign{\global\setlength\aboverulesep{0pt}}%
+ \noalign{\global\setlength\arrayrulewidth{0pt}}\arrayrulecolor{DarkOrange}\cmidrule[1pt](l{-1pt}){#1}%
+ \noalign{\global\setlength\arrayrulewidth{\Origarrayrulewidth}}%
+ \noalign{\global\setlength\belowrulesep{\Origbelowrulesep}}%
+ \noalign{\global\setlength\aboverulesep{\Origaboverulesep}}%
+}
+
+\newcommand{\ClineOrange}[1]{%
+ \noalign{\global\setlength\Origarrayrulewidth{\arrayrulewidth}}%
+ \noalign{\global\setlength\Origbelowrulesep{\belowrulesep}}%
+ \noalign{\global\setlength\Origaboverulesep{\aboverulesep}}%
+ \noalign{\global\setlength\belowrulesep{0pt}}%
+ \noalign{\global\setlength\aboverulesep{-1pt}}%
+ \noalign{\global\setlength\arrayrulewidth{0pt}}\arrayrulecolor{Orange}\cmidrule[1pt](l{-1pt}){#1}%
+ \noalign{\global\setlength\arrayrulewidth{\Origarrayrulewidth}}%
+ \noalign{\global\setlength\belowrulesep{\Origbelowrulesep}}%
+ \noalign{\global\setlength\aboverulesep{\Origaboverulesep}}%
+}
+
+
+\newcommand{\boxsource}[1]{\vfill\footnotesize\textit{Source: }#1}
+\newcommand{\boxsources}[1]{\vfill\footnotesize\textit{Sources: }#1}
+
+\usepackage{environ}
+\makeatletter
+\newsavebox{\measure@tikzpicture}
+\NewEnviron{scaletikzpicturetowidth}[1]{%
+  \def\tikz@width{#1}%
+  \def\tikzscale{1}\begin{lrbox}{\measure@tikzpicture}%
+  \BODY
+  \end{lrbox}%
+  \pgfmathparse{#1/\wd\measure@tikzpicture}%
+  \edef\tikzscale{\pgfmathresult}%
+  \BODY
+}
+\makeatother
+
+%  http://tex.stackexchange.com/questions/120716/appendix-after-each-chapter
+\usepackage[page, toc]{appendix}
+\usepackage{chngcntr}
+
+\makeatletter
+\@addtoreset{chapter}{part}
+\@addtoreset{footnote}{part}
+\makeatother 
+
+\counterwithout{figure}{chapter}
+\counterwithout{table}{chapter}
+\counterwithout{boxe}{chapter}
+ 
+\crefname{appchapter}{Appendix}{Appendices}  % aliases for chapters
+
+\newcounter{mysubappendix}
+\AtBeginEnvironment{subappendices}{%
+    \crefalias{chapter}{appchapter}
+    \setcounter{mysubappendix}{0}
+    \cleardoublepage
+    \addappheadtotoc
+    \addtocontents{toc}{\protect\setcounter{tocdepth}{-1}}
+    \let\origchapter\chapter
+    \renewcommand{\chapter}[1]{\refstepcounter{mysubappendix}\origchapter{#1}}
+    \renewcommand{\thechapter}{\Alph{mysubappendix}}
+    \renewcommand{\setthesection}{\thechapter.\arabic{section}}    
+}
+\AtEndEnvironment{subappendices}{%
+    \addtocontents{toc}{\protect\setcounter{tocdepth}{0}}
+}
+  
+  
+  \newcommand\gao{Grattan analysis of}
+  \newcommand{\mpfootnotes}[1][1]{
+    \renewcommand{\thempfootnote}{\thefootnote}
+    \addtocounter{footnote}{-#1}
+        \renewcommand{\footnote}{\stepcounter{footnote}\footnotetext[\value{footnote}]}}
+    
+    \usetikzlibrary{shapes,arrows,automata,positioning,calc}
+    \tikzstyle{block} = [rectangle, draw, text width=6em, text centered, rounded corners, minimum height=4em]
+    
+    \tikzstyle{line} = [draw, thick, -latex']
+                        
+\newcommand{\Act}[2]{\emph{#1} (#2)}
+\newcommand{\EMPH}[1]{\textbf{#1}}
+\newcommand{\highlight}[1]{\textbf{#1}}
+\newcommand\ie{\emph{i.e.}}
+\newcommand\etc{\emph{etc}}
+
+\usepackage{relsize}% http://ctan.org/pkg/{relsize,etoolbox}
+\AtBeginEnvironment{quote}{\smaller}
+\AtBeginEnvironment{tabularx}{\relax\small}
+
+\newcommand{\BfUpArr}{\tikz[baseline]{\draw[-latex, thick] (0,-0.33ex) -- (0,10pt);}\phantom{.}}
+\newcommand{\BfDnArr}{\tikz[baseline]{\draw[latex-, thick] (0,-0.50ex) -- (0,10pt);}\phantom{.}}
+
+\newcommand{\cellYes}{\cellcolor{DarkOrange}}
+\newcommand{\cellNo}{}
+
+% knitr
+\IfFileExists{upquote.sty}{\usepackage{upquote}}{}
+
+% one page ragged bottom
+\makeatletter
+\newcommand{\oneraggedpage}{\let\mytextbottom\@textbottom
+  \let\mytexttop\@texttop
+  \raggedbottom
+  \afterpage{%
+  \global\let\@textbottom\mytextbottom
+  \global\let\@texttop\mytexttop}}
+
+% for avoid breaking enumerate lists 
+\newcommand\mynobreakpar{\par\nobreak\@afterheading} 
+
+\def\@testdef #1#2#3{%
+  \def\reserved@a{#3}\expandafter \ifx \csname #1@#2\endcsname
+ \reserved@a  \else
+\typeout{^^Jlabel #2 changed:^^J%
+\meaning\reserved@a^^J%
+\expandafter\meaning\csname #1@#2\endcsname^^J}%
+\@tempswatrue \fi}

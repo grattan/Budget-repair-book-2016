@@ -1,0 +1,1862 @@
+\documentclass[tikz]{standalone}
+
+\begin{document}
+
+<<knitrOpts, echo=FALSE, message=FALSE>>=
+library(tikzDevice)
+
+cmyk_pdf <- function(file, width, height){
+  pdf(file = file, width = width, height = height, colormodel = "cmyk")
+}
+
+# knitr chunk opts
+# fig.width must = out.width and same for *.height
+knitr::opts_chunk$set(fig.width=11.000, fig.height=7.00, 
+                      out.width="11.000in", out.height="7.00in",echo=FALSE,
+                      message=FALSE, warning=FALSE, 
+                      dev='cmyk_pdf'
+                      ,fig.showtext=TRUE
+                      ,fig.path = "atlas-temp/"
+                      ,fig.ext = "pdf"
+                      ,cache=FALSE
+)
+library(showtext)
+library(sysfonts)
+
+font.add("helvet", 
+         regular = "C:/Program Files/MiKTeX 2.9/fonts/type1/urw/helvetic/uhvr8a.pfb", 
+         bold = "C:/Program Files/MiKTeX 2.9/fonts/type1/urw/helvetic/uhvb8a.pfb", 
+         italic = "C:/Program Files/MiKTeX 2.9/fonts/type1/urw/helvetic/uhvro8a.pfb")
+
+every_nth <- function(x, n, start = 0){
+  x <- as.character(x)
+  x[!(1:length(x) %in% seq(start, length(x), by = n))] <- ""
+  x
+}
+
+step_every_nth <- function(x, n, start = 0){
+  x[seq(from = start, to = length(x), by = n)] <- paste0("\n",  x[seq(from = start, to = length(x), by = n)])
+  x
+}
+
+ggplot2::update_geom_defaults("text", list(family = "helvet"))
+grplot <- function(...) grattan::grplot(...) + theme_hugh(base_family = "helvet") + theme(axis.line.x = element_line(), axis.line.y = element_line())
+@
+
+<<grattan_percent>>=
+grattan_percent <- function(x){
+  ifelse(x < 0, paste0("\u2212", percent(abs(x))), percent(x))
+}
+@
+
+<<loadPackages>>=
+library(foreign)
+library(data.table)
+library(dplyr)
+library(magrittr)
+library(readr)
+library(tidyr)
+library(readxl)
+library(grattan)
+library(ggplot2)
+library(ggrepel)
+library(scales)
+library(grid)
+library(gridExtra)
+library(cowplot)
+library(taxstats)
+@
+
+
+<<baptiste, fig.show='hide'>>=
+set_panel_size <- function(p=NULL, g=ggplotGrob(p), file=NULL, 
+                           margin = unit(0,"mm"),
+                           width=unit(3, "cm"), height=unit(2, "cm")){
+
+  panels <- grep("panel", g$layout$name)
+  panel_index_w<- unique(g$layout$l[panels])
+  panel_index_h<- unique(g$layout$t[panels])
+  nw <- length(panel_index_w)
+  nh <- length(panel_index_h)
+
+  # the following conversion is necessary
+  # because there is no `[<-`.unit method
+  # so promoting to unit.list allows standard list indexing
+  g$widths <- grid:::unit.list(g$widths)
+  g$heights <- grid:::unit.list(g$heights)
+
+  g$widths[panel_index_w] <-  rep(list(width), nw)[[1]]
+  g$heights[panel_index_h] <-  rep(list(height), nh)[[1]]
+  class(g) <- c("fixed", class(g), "ggplot")
+  if(!is.null(file))
+   ggplot2::ggsave(file, g, 
+          width = convertWidth(sum(g$widths) + margin, unitTo = "in", valueOnly = TRUE),
+          height = convertHeight(sum(g$heights) + margin, unitTo = "in", valueOnly = TRUE))
+
+  g
+}
+
+set_panel_height <- function(p=NULL, g=ggplotGrob(p), file=NULL, 
+                             margin = unit(0,"mm"),
+                             width="11in", height=unit(2, "cm")){
+
+  panels <- grep("panel", g$layout$name)
+  panel_index_w<- unique(g$layout$l[panels])
+  panel_index_h<- unique(g$layout$t[panels])
+  nw <- length(panel_index_w)
+  nh <- length(panel_index_h)
+
+  # the following conversion is necessary
+  # because there is no `[<-`.unit method
+  # so promoting to unit.list allows standard list indexing
+  g$heights <- grid:::unit.list(g$heights)
+
+  g$heights[panel_index_h] <-  rep(list(height), nh)[[1]]
+  class(g) <- c("fixed", class(g), "ggplot")
+  if(!is.null(file))
+   ggsave(file, g, 
+          width = convertWidth(sum(g$widths) + margin, unitTo = "in", valueOnly = TRUE),
+          height = convertHeight(sum(g$heights) + margin, unitTo = "in", valueOnly = TRUE))
+
+  g
+}
+@
+
+
+<<stacked_bar_with_right_labels2>>=
+stacked_bar_with_right_labels2 <- 
+  function(.data, 
+                                          geom = "bar",
+                                          barwidth,
+                                          verbose = FALSE,
+                                          right_margin = 0.5,
+                                          scale_y_args, 
+                                          scale_x_args,
+                                          coord_cartesian_args,
+                                          theme.args, 
+                                          nudge_up = 0, fill_colours){
+  stopifnot(all(c("x", "y", "fill") %in% names(.data)))
+  x = y = fill = text.label = text.x = text.y = NULL
+  if(!is.factor(.data$fill) || !is.ordered(.data$fill)){
+    stop("'fill' must be an ordered factor.")
+  }
+  if(!is.factor(.data$x) || !is.ordered(.data$x)){
+    stop("'x' must be an ordered factor.")
+  }
+  
+  .plot.data <- 
+    .data %>%
+    # our label should only appear at the last x
+    dplyr::mutate(text.label = ifelse(x == max(x), 
+                                      as.character(fill), 
+                                      NA_character_)) %>%
+    # it should be as high as the corresponding bar:
+    # all the way up the previous, then half of the corresponding height
+    dplyr::arrange(fill) %>%
+    dplyr::group_by(x) %>%
+    dplyr::mutate(text.y = -y/2 + cumsum(y) + nudge_up, 
+                  text.x = max(as.numeric(.data$x)) + 0.5)
+  
+  
+  label_max_width <- 
+    # longest spell between '\n <---> \n'
+    strsplit(as.character(unique(.data$fill)), split = "\n") %>%
+    unlist %>%
+    # actual character size in bold `Arial'
+    strwidth(., units = "inches", font = 2, family = "sans") %>%
+    max
+  
+  # To convert to lines, use "X" as approximation
+  eX <- strwidth("X", units = "inches")
+  label_max_width <- 1.01 * label_max_width / eX
+  if (verbose){
+    message('I chose ', label_max_width, ' for the right margin.\n',
+            'If my choice of margin is unsuitable for the label,\n',
+            'you can use\n',
+            '  right_margin = ', 
+            '\nas a replacement for ', label_max_width, '\n',
+            'It is my job to select a good margin; so please\n',
+            'report any bad choices of mine as a bug.')
+  }
+  
+  ## Need to check whether the texts will overlap
+  
+  if (geom == "bar"){
+    if (missing(barwidth)){
+      p <- 
+        grplot(.plot.data) + 
+        ggplot2::geom_bar(ggplot2::aes(x = x, y = y, fill = fill), stat = "identity") +
+        ggplot2::geom_text(ggplot2::aes(label = text.label, 
+                                        x = text.x,
+                                        y = text.y, 
+                                        colour = fill),
+                           family = "helvet",
+                           na.rm = TRUE,
+                           hjust = 0,
+                           lineheight = 0.9,
+                           size = 20/(14/5),
+                           fontface = "bold") 
+    } else {
+      p <- 
+        grplot(.plot.data) + 
+        ggplot2::geom_bar(ggplot2::aes(x = x, y = y, fill = fill), stat = "identity", width = barwidth) +
+        ggplot2::geom_text(ggplot2::aes(label = text.label, 
+                                        x = text.x,
+                                        y = text.y, 
+                                        colour = fill), 
+                           family = "helvet",
+                           na.rm = TRUE,
+                           hjust = 0,
+                           lineheight = 0.9,
+                           size = 20/(14/5),
+                           fontface = "bold") 
+    }
+    if (!missing(scale_x_args)){
+      p <- p + do.call(ggplot2::scale_x_discrete, args = scale_x_args)
+    }
+    
+    if (!missing(scale_y_args)){
+      p <- p + do.call(ggplot2::scale_y_continuous, args = scale_y_args)
+    }
+    
+    if (!missing(coord_cartesian_args)){
+      p <- p + do.call(ggplot2::coord_cartesian, args = coord_cartesian_args)
+    }
+
+    if (missing(right_margin)){
+      p <- p + ggplot2::theme(plot.margin = grid::unit(c(0.7, label_max_width, 0.5, 0),
+                                                       "lines"))
+    } else {
+      p <- p + ggplot2::theme(plot.margin = grid::unit(c(0.7, right_margin, 0.5, 0), 
+                                                       "lines"))
+    }
+    
+    if (!missing(theme.args)){
+      p <- p + do.call(theme, theme.args)
+    }
+    
+    if (!missing(fill_colours)){
+      p <- p + scale_fill_manual(values = fill_colours)
+    }
+  } else {
+    stop("You've asked for a geom which is not supported.")
+  }
+  grid::grid.newpage()
+  gt <- ggplot2::ggplot_gtable(ggplot2::ggplot_build(p))
+  gt$layout$clip[gt$layout$name == "panel"] <- "off"
+  grid::grid.draw(gt)
+}
+@
+
+<<stacked_bar_with_right_labels3>>=
+stacked_bar_with_right_labels3 <- 
+  function(.data, 
+           geom = "bar",
+           barwidth,
+           verbose = FALSE,
+           right_margin = 0.5,
+           scale_y_args, 
+           scale_x_args,
+           coord_cartesian_args,
+           theme.args, 
+           nudge_up = 0,
+           nudge_right = 0, 
+           fill_colours){
+  stopifnot(all(c("x", "y", "fill") %in% names(.data)))
+  x = y = fill = text.label = text.x = text.y = NULL
+  if(!is.factor(.data$fill) || !is.ordered(.data$fill)){
+    stop("'fill' must be an ordered factor.")
+  }
+  if(!is.factor(.data$x) || !is.ordered(.data$x)){
+    stop("'x' must be an ordered factor.")
+  }
+  
+  .plot.data <- 
+    .data %>%
+    # our label should only appear at the last x
+    dplyr::mutate(text.label = ifelse(x == max(x), 
+                                      as.character(fill), 
+                                      NA_character_)) %>%
+    # it should be as high as the corresponding bar:
+    # all the way up the previous, then half of the corresponding height
+    dplyr::arrange(fill) %>%
+    dplyr::group_by(x) %>%
+    dplyr::mutate(text.y = -y/2 + cumsum(y) + nudge_up, 
+                  text.x = max(as.numeric(.data$x)) + 0.5 + nudge_right)
+  
+  
+  label_max_width <- 
+    # longest spell between '\n <---> \n'
+    strsplit(as.character(unique(.data$fill)), split = "\n") %>%
+    unlist %>%
+    # actual character size in bold `Arial'
+    strwidth(., units = "inches", font = 2, family = "sans") %>%
+    max
+  
+  # To convert to lines, use "X" as approximation
+  eX <- strwidth("X", units = "inches")
+  label_max_width <- 1.01 * label_max_width / eX
+  if (verbose){
+    message('I chose ', label_max_width, ' for the right margin.\n',
+            'If my choice of margin is unsuitable for the label,\n',
+            'you can use\n',
+            '  right_margin = ', 
+            '\nas a replacement for ', label_max_width, '\n',
+            'It is my job to select a good margin; so please\n',
+            'report any bad choices of mine as a bug.')
+  }
+  
+  ## Need to check whether the texts will overlap
+  
+  if (geom == "bar"){
+    if (missing(barwidth)){
+      p <- 
+        grplot(.plot.data) + 
+        ggplot2::geom_bar(ggplot2::aes(x = x, y = y, fill = fill), stat = "identity") +
+        ggplot2::geom_text(ggplot2::aes(label = text.label, 
+                                        x = text.x,
+                                        y = text.y, 
+                                        colour = fill),
+                           family = "helvet",
+                           na.rm = TRUE,
+                           hjust = 0,
+                           lineheight = 0.9,
+                           size = 20/(14/5),
+                           fontface = "bold") 
+    } else {
+      p <- 
+        grplot(.plot.data) + 
+        ggplot2::geom_bar(ggplot2::aes(x = x, y = y, fill = fill), stat = "identity", width = barwidth) +
+        ggplot2::geom_text(ggplot2::aes(label = text.label, 
+                                        x = text.x,
+                                        y = text.y, 
+                                        colour = fill), 
+                           family = "helvet",
+                           na.rm = TRUE,
+                           hjust = 0,
+                           lineheight = 0.9,
+                           size = 20/(14/5),
+                           fontface = "bold") 
+    }
+    if (!missing(scale_x_args)){
+      p <- p + do.call(ggplot2::scale_x_discrete, args = scale_x_args)
+    }
+    
+    if (!missing(scale_y_args)){
+      p <- p + do.call(ggplot2::scale_y_continuous, args = scale_y_args)
+    }
+    
+    if (!missing(coord_cartesian_args)){
+      p <- p + do.call(ggplot2::coord_cartesian, args = coord_cartesian_args)
+    }
+
+    if (missing(right_margin)){
+      p <- p + ggplot2::theme(plot.margin = grid::unit(c(0.7, label_max_width, 0.5, 0),
+                                                       "lines"))
+    } else {
+      p <- p + ggplot2::theme(plot.margin = grid::unit(c(0.7, right_margin, 0.5, 0), 
+                                                       "lines"))
+    }
+    
+    if (!missing(theme.args)){
+      p <- p + do.call(theme, theme.args)
+    }
+    
+    if (!missing(fill_colours)){
+      p <- p + scale_fill_manual(values = fill_colours)
+    }
+  } else {
+    stop("You've asked for a geom which is not supported.")
+  }
+  grid::grid.newpage()
+  gt <- ggplot2::ggplot_gtable(ggplot2::ggplot_build(p))
+  gt$layout$clip[gt$layout$name == "panel"] <- "off"
+  grid::grid.draw(gt)
+}
+@
+
+\section{Property}
+
+<<property>>=
+knitr::opts_chunk$set(fig.path = "./Property-taxes/atlas/figure/")
+@
+
+<<Figure1>>=
+read.table(text="Country 	y
+Switzerland	0.2%
+Netherlands	0.7%
+Ireland	1.0%
+Spain	1.0%
+Australia	1.4%
+NZ	2.0%
+Japan	2.1%
+US	2.8%
+Canada	2.8%
+UK	3.2%
+", sep = "\t", header = TRUE, as.is = TRUE, check.names = FALSE) %>%
+  mutate(Country = factor(Country, levels = unique(.$Country), ordered = TRUE), 
+         y = as.numeric(gsub("%", "", as.character(y), fixed = TRUE))) %>%
+  grplot(aes(x = Country, y = y, fill = Country == "Australia")) + 
+  geom_bar(stat = "identity")  + 
+  scale_fill_manual(values = c(col.5, col.6)) + 
+  geom_hline(yintercept = 1.7, color = Orange, size = 1.5) + 
+  geom_hline(yintercept = 1.1, color = col.2, size = 1.5) + 
+  annotate("text",
+           x = 1-0.35,
+           y = c(1.1, 1.7) + 0.15,
+           label = c("OECD average", "OECD-10 average"),
+           colour = c(col.2, Orange),
+           family = "helvet",
+           fontface = "bold",
+           size = 20/(14/5),
+           hjust = 0) +
+  scale_y_continuous(label = function(x) percent(x / 100), expand = c(0,0)) + 
+  scale_x_discrete(label = function(x) step_every_nth(as.character(x), 2, start = 1)) +
+  theme(axis.title.x = element_blank(), panel.grid.major.y = element_line())
+@
+
+<<Figure2, fig.showtext=TRUE>>=
+read.table(text="Variable	Residential	Commercial	Rural	Other	Total land	Residential improvements	Non-residential improvements
+Jun-1989	858.5	227.3	127.0	142.9	1355.7	726.3	1033.4
+Jun-1990	838.3	192.2	121.9	119.2	1271.6	749.1	1035.8
+Jun-1991	818.0	162.4	119.5	98.8	1198.8	746.5	1010.5
+Jun-1992	842.1	138.1	99.6	81.8	1161.8	756.5	988.9
+Jun-1993	862.0	132.8	104.3	77.5	1176.6	784.5	986.4
+Jun-1994	952.2	134.7	100.4	77.5	1264.7	818.5	999.7
+Jun-1995	956.7	134.7	101.7	76.0	1269.2	841.5	1018.4
+Jun-1996	947.0	131.4	128.9	73.9	1281.1	839.9	1024.8
+Jun-1997	1114.0	139.1	133.0	77.3	1463.4	857.0	1059.1
+Jun-1998	1188.1	146.5	145.3	81.1	1560.9	899.2	1113.8
+Jun-1999	1302.3	153.4	151.0	80.7	1687.4	955.3	1166.4
+Jun-2000	1449.1	157.8	156.4	85.5	1848.8	1014.9	1204.8
+Jun-2001	1490.9	157.4	162.4	77.2	1887.7	1098.1	1175.3
+Jun-2002	1808.5	175.9	179.8	81.9	2246.2	1132.9	1192.3
+Jun-2003	2147.4	211.1	192.3	84.0	2634.8	1204.8	1241.6
+Jun-2004	2394.7	234.5	233.6	95.6	2958.5	1303.7	1324.7
+Jun-2005	2487.6	261.4	256.2	116.5	3121.7	1391.3	1418.4
+Jun-2006	2707.3	274.9	257.1	121.5	3360.7	1450.3	1519.9
+Jun-2007	3004.2	311.0	268.8	133.7	3717.6	1514.8	1638.8
+Jun-2008	3018.3	365.5	283.5	173.3	3840.6	1574.1	1731.1
+Jun-2009	2704.9	370.5	288.0	255.7	3619.1	1608.6	1772.2
+Jun-2010	3357.4	378.7	291.7	246.2	4273.8	1650.1	1812.3
+Jun-2011	3222.5	355.2	282.4	242.2	4102.3	1674.7	1884.1
+Jun-2012	2986.5	358.3	277.1	235.8	3857.8	1695.6	1990.8
+Jun-2013	3102.4	360.8	264.8	225.7	3953.7	1729.2	2100.6
+Jun-2014	3433.2	360	257.4	216.9	4267.5	1763.2	2193.2
+", sep = "\t", header = TRUE, as.is = TRUE, check.names = FALSE) %>%
+  select(-`Total land`) %>%
+  mutate(Variable = as.numeric(gsub("Jun-", "", Variable, fixed = TRUE))) %>%
+  gather(fill, y, -Variable, factor_key = TRUE) %>%
+  mutate(fill = factor(fill, ordered = TRUE), 
+         fill = factor(fill, labels = gsub("\\simprovements", "\n improvements", unique(.$fill)), ordered = TRUE), 
+         x = factor(Variable, ordered = TRUE)) %>%
+  
+  stacked_bar_with_right_labels2(., theme.args = list(text = element_text(family = "helvet"), 
+                                                      panel.grid.major.y = element_line(), axis.title.x = element_blank()),
+                                 # fill_colours = gpal(9)[-c(2,8)],
+                                 nudge_up = c(0, -40, 20, 80, 0, 0),
+                                 scale_x_args = list(labels = function(x) every_nth(x, 5, start = 1)), 
+                                 scale_y_args = list(expand = c(0,0), labels = function(x) paste0("$", x / 1000)))
+@
+
+\clearpage
+<<Figure3-textwidth, out.width="11.55in", fig.width=11.55, fig.showtext=TRUE>>=
+figure3_p <- 
+  read.table(text='Revenue head	Revenue growth for a 10 percent rise in GSP	Label	label_y
+Gambling	0.063407364		
+GST	0.083550345		
+Motor vehicles	0.091555525		
+Payroll	0.099064288		
+Insurance	0.111413462		
+All taxes	0.078431143		
+Stamp duty	0.153899505		
+Land	0.12512039		
+Property levy	0.150871271		
+Property levy		"Revenues
+grew faster
+than economy"	0.1
+Property levy		"Revenues
+grew slower
+than economy"	0.1
+', header = TRUE, as.is = FALSE, sep = "\t", check.names = FALSE) %>%
+  mutate(fill = factor(`Revenue head` %in% c("Stamp duty", "Land", "Property levy", "zz", "zzz"),
+                       labels = c("", "Taxes on property and\nproperty transactions"))) %>%
+  mutate(`Revenue head` = factor(`Revenue head`, 
+                                 levels = unique(.$`Revenue head`),
+                                 labels = gsub("z", 
+                                               " ", 
+                                               gsub("Gambling", "\nGambling",
+                                                    gsub("Insurance", "Insur-\nance",
+                                                         gsub("\\s", 
+                                                              "\n", 
+                                                              unique(.$`Revenue head`))))),
+                                               ordered = TRUE)) %>%
+  grplot(aes(x = `Revenue head`, 
+             y = `Revenue growth for a 10 percent rise in GSP`, 
+             fill = fill), 
+         reverse = TRUE) + 
+  geom_bar(stat = "identity") + 
+  scale_y_continuous(expand = c(0,0), limits = c(0, 0.16), labels = percent, breaks = c(0, 5, 10, 15)/100) + 
+  facet_grid(~ fill, scales = "free", drop = TRUE, space = "free_x") + 
+  theme_hugh(base_family = "helvet") + 
+  # scale_x_discrete(labels = function(x) step_every_nth(x, n = 2, start = 0)) + 
+  # coord_flip() +
+  theme(panel.grid.major.y = element_line(),
+        panel.margin = unit(2.5, "pt"),
+        plot.margin = grid::unit(c(0.7, 10.5, 0.5, 0.00), "lines"),
+        strip.background = element_blank(),
+        strip.text = element_text(face = "bold", color = gpal(2)[1]),
+        axis.text.x = element_text(size = 19),
+        axis.title.x = element_blank()) + 
+  # geom_hline(yintercept = 0.1, size = 1.5) + 
+  geom_text(aes(y = label_y + ifelse(grepl("faster", Label), 0.005, -0.005), 
+                label = Label, 
+                vjust = ifelse(grepl("faster", Label), 0, 1)),
+            family = "helvet",
+            lineheight = 0.95,
+            fontface = "bold",
+            size = 20/(14/5),
+            hjust = 0, 
+            nudge_x = 0.5)
+
+grid::grid.newpage()
+gt <- ggplot2::ggplot_gtable(ggplot2::ggplot_build(figure3_p))
+gt$layout$clip[gt$layout$name == "panel"] <- "off"
+grid::grid.draw(gt)
+# line across facets
+grid.segments(x0 = unit(0.07, "npc"), x1 = unit(1, "npc"), 
+              y0 = unit(0.580, "npc"), y1 = unit(0.580, "npc"), 
+              gp = gpar(lwd = 4.67, lty = "43", lineend = "square", alpha = 1))
+grid.segments(x0 = unit(0.99, "npc"), x1 = unit(0.99, "npc"), 
+              y0 = unit(0.61, "npc"), y1 = unit(0.76, "npc"), 
+              arrow = arrow(length = unit(0.02, "npc"), type = "closed"), 
+              gp = gpar(lwd = 4, type = "closed", lineend = "butt", linejoin = 'mitre', fill = "black"))
+grid.segments(x0 = unit(0.99, "npc"), x1 = unit(0.99, "npc"), 
+              y0 = unit(0.55, "npc"), y1 = unit(0.41, "npc"), 
+              arrow = arrow(length = unit(0.02, "npc"), type = "closed"), 
+              gp = gpar(lwd = 4, type = "closed", lineend = "butt", linejoin = 'mitre', fill = "black"))
+@
+\clearpage
+<<Figure3-flipped>>=
+read.table(text='Revenue head	Revenue growth for a 10 percent rise in GSP	Label	label_y
+Gambling	0.063407364		
+GST	0.083550345		
+Motor vehicles	0.091555525		
+Payroll	0.099064288		
+Insurance	0.111413462		
+All taxes	0.078431143		
+Stamp duty	0.153899505		
+Land	0.12512039		
+Property levy	0.150871271		
+Property levy		"Revenues
+grew faster
+than economy"	0.1
+Property levy		"Revenues
+grew slower
+than economy"	0.1
+', header = TRUE, as.is = FALSE, sep = "\t", check.names = FALSE) %>%
+  mutate(fill = factor(`Revenue head` %in% c("Stamp duty", "Land", "Property levy", "zz", "zzz"),
+                       labels = c("", "Taxes on property and\nproperty transactions")), 
+         x = factor(`Revenue head`, levels = unique(.$`Revenue head`), ordered = TRUE), 
+         y = `Revenue growth for a 10 percent rise in GSP`) %>%
+  grplot(aes(x = x, y = y, fill = fill), reverse = TRUE) + 
+  geom_bar(stat = "identity") + 
+  annotate("segment", x = -Inf, xend = Inf, y = 0.1, yend = 0.1, size = 1.5, linetype = "dashed") + 
+  coord_flip() +
+  scale_y_continuous(label = percent, expand = c(0,0), limits = c(0, 0.16), breaks = c(0, 0.05, 0.10, 0.15)) + 
+  theme(axis.title.x = element_blank(), 
+        panel.grid.major = element_blank(), 
+        plot.margin = margin(t = 5.5, r = 5.5, l = 0, b = 44))
+
+grid.segments(x0 = unit(0.67, "npc"), x1 = unit(0.57, "npc"), 
+              y0 = unit(0.05, "npc"), y1 = unit(0.05, "npc"), 
+              arrow = arrow(length = unit(0.02, "npc"), type = "closed"), 
+              gp = gpar(lwd = 4, type = "closed", lineend = "butt", linejoin = 'mitre', fill = "black"))
+grid.segments(x0 = unit(0.80, "npc"), x1 = unit(0.90, "npc"), 
+              y0 = unit(0.05, "npc"), y1 = unit(0.05, "npc"), 
+              arrow = arrow(length = unit(0.02, "npc"), type = "closed"), 
+              gp = gpar(lwd = 4, type = "closed", lineend = "butt", linejoin = 'mitre', fill = "black"))
+@
+
+\clearpage
+<<Figure4, fig.showtext=TRUE>>=
+figure4_p <- 
+  read.table(text='x	y	Label	label_y
+Gambling	0.067254053		
+GST	0.052300673		
+Motor vehicles	0.025801344		
+Payroll	0.03433749		
+Insurance	0.04648004		
+All taxes	0.054553646		
+Stamp duty	0.210843941		
+Land	0.097568528		
+Property levy	0.076405153		
+Property levy		"Revenues are
+more volatile
+than average"	0.06
+Property levy		"Revenues are
+less volatile
+than average"	0.06
+', header = TRUE, as.is = FALSE, sep = "\t", check.names = FALSE) %>%
+  mutate(fill = factor(x %in% c("Stamp duty", "Land", "Property levy", "zz", "zzz"),
+                       labels = c("", "Taxes on property and\nproperty transactions"))) %>%
+  mutate(x = factor(x, 
+                                 levels = unique(.$x),
+                                 labels = gsub("z", 
+                                               " ", 
+                                               gsub("Gambling", "\nGambling",
+                                                    gsub("Insurance", "Insur-\nance",
+                                                         gsub("\\s", 
+                                                              "\n", 
+                                                              unique(.$x))))),
+                                               ordered = TRUE)) %>%
+  grplot(aes(x = x, 
+             y = y, 
+             fill = fill), 
+         reverse = TRUE) + 
+  geom_bar(stat = "identity") + 
+  scale_y_continuous(expand = c(0,0), limits = c(0, 0.22), labels = percent, breaks = c(0, 5, 10, 15, 20)/100) + 
+  facet_grid(~ fill, scales = "free", drop = TRUE, space = "free_x") + 
+  theme_hugh(base_family = "helvet") + 
+  # scale_x_discrete(labels = function(x) step_every_nth(x, n = 2, start = 0)) + 
+  # coord_flip() +
+  theme(panel.grid.major.y = element_line(),
+        panel.margin = unit(5.5, "pt"),
+        plot.margin = grid::unit(c(0.7, 10.5, 0.5, 0.00), "lines"),
+        strip.background = element_blank(),
+        strip.text = element_text(face = "bold", color = gpal(2)[1]),
+        axis.title.x = element_blank()) + 
+  # geom_hline(yintercept = 0.1, size = 1.5) + 
+  geom_text(aes(y = label_y + ifelse(grepl("more volatile", Label), 0.005, -0.005), 
+                label = Label, 
+                vjust = ifelse(grepl("more volatile", Label), 0, 1)),
+            family = "helvet",
+            lineheight = 0.95,
+            fontface = "bold",
+            size = 20/(14/5),
+            hjust = 0, 
+            nudge_x = 0.5)
+
+grid::grid.newpage()
+gt <- ggplot2::ggplot_gtable(ggplot2::ggplot_build(figure4_p))
+gt$layout$clip[gt$layout$name == "panel"] <- "off"
+grid::grid.draw(gt)
+# line across facets
+grid.segments(x0 = unit(0.055, "npc"), 
+              x1 = unit(1, "npc"), 
+              y0 = unit(0.5859 - 0.268, "npc"), 
+              y1 = unit(0.5859 - 0.268, "npc"), gp = gpar(lwd = 4.67, lty = "43", lineend = "square", alpha = 1))
+grid.segments(x0 = unit(0.99, "npc"), 
+              x1 = unit(0.99, "npc"), 
+              y0 = unit(0.61 - 0.268, "npc"), 
+              y1 = unit(0.76 - 0.268, "npc"), 
+              arrow = arrow(length = unit(0.02, "npc"), type = "closed"), 
+              gp = gpar(lwd = 4, type = "closed", lineend = "butt", linejoin = 'mitre', fill = "black"))
+grid.segments(x0 = unit(0.99, "npc"), 
+              x1 = unit(0.99, "npc"), 
+              y0 = unit(0.56 - 0.268, "npc"), 
+              y1 = unit(0.41 - 0.268, "npc"), 
+              arrow = arrow(length = unit(0.02, "npc"), type = "closed"), 
+              gp = gpar(lwd = 4, type = "closed", lineend = "butt", linejoin = 'mitre', fill = "black"))
+@
+
+\clearpage
+
+<<Figure5, out.height="8in", fig.height=8, fig.showtext=TRUE>>=
+Figure5_p <-
+  grplot(data_frame(x = 1:6, 
+                    y = seq(0, 20, 4))) + 
+  geom_blank() + 
+  annotate("rect", 
+           xmin = 1:3 - 0.35, 
+           xmax = 1:3 + 0.35, 
+           ymin = c(0, 6.95, 0), 
+           ymax = c(7.5, 7.5, 6.95), 
+           fill = col.5, 
+           colour = "black") + 
+  annotate("rect", 
+           xmin = 4:6 - 0.35, xmax = 4:6 + 0.35, 
+           ymin = 0, ymax = c(6.192, 14.192, 14.4), 
+           colour = "black",
+           fill = DarkOrange) + 
+  geom_blank(data = data_frame(x = 4:6, y = 0), aes(x,y)) + 
+  scale_y_continuous(expand = c(0,0), label = dollar, limits = c(0,20), breaks = seq(0, 20, 4)) +
+  scale_x_continuous(breaks = 1:6,
+                     labels = c("State govt.\nrevenues\nfrom\nproperty\nlevy",
+                                "Less lower\nCth govt.\nincome tax",
+                                "Net\ncombined\nrevenue\ngain for\nCth & state\ngovts.",
+                                "Land taxes",
+                                "Council\nrates",
+                                "Stamp duty")) +
+  annotate("text", 
+           x = c(2, 5), 
+           y = 20-0.25, 
+           label = c("Broad-based property levy of\n0.2% of unimproved\nland value (2015-16)", 
+                     "Current property-related\nrevenues (2012-13)"), 
+           vjust = "inward",
+           fontface = "bold",
+           lineheight = 1,
+           family = "helvet",
+           size = 20/(14/5),
+           colour = c(col.5, DarkOrange)) + 
+  annotate("segment", 
+           x = 1:2 + 0.35, 
+           xend = 2:3 - 0.35, 
+           y = c(7.5, 6.95), 
+           yend = c(7.5, 6.95), 
+           linetype = "dashed") + 
+  theme_hugh(base_family = "helvet") + 
+  theme(axis.title.x = element_blank(), 
+        panel.grid.major.y = element_line())
+Figure5_p
+@
+
+<<Figure5_height>>=
+Figure5_gt <- ggplotGrob(Figure5_p)
+grid:::unit.list(Figure5_gt$heights)
+
+panel_height <- convertHeight(Figure5_gt$heights[4], unitTo = "in", valueOnly = TRUE)
+x_axis_height <- convertHeight(Figure5_gt$heights[6], unitTo = "in", valueOnly = TRUE)
+@
+\clearpage
+\newpage
+\Sexpr{convertHeight(sum(grid:::unit.list(Figure5_gt$heights)), "in", valueOnly = TRUE)}\quad \Sexpr{convertHeight(sum(grid:::unit.list(Figure5_gt$heights[1])), "in", valueOnly = TRUE)} \quad \Sexpr{convertHeight(sum(grid:::unit.list(Figure5_gt$heights[2])), "in", valueOnly = TRUE)} \quad \Sexpr{convertHeight(sum(grid:::unit.list(Figure5_gt$heights[3])), "in", valueOnly = TRUE)} \quad \Sexpr{convertHeight(sum(grid:::unit.list(Figure5_gt$heights[4])), "in", valueOnly = TRUE)} \quad \Sexpr{convertHeight(sum(grid:::unit.list(Figure5_gt$heights[5])), "in", valueOnly = TRUE)} \quad \Sexpr{convertHeight(sum(grid:::unit.list(Figure5_gt$heights[6])), "in", valueOnly = TRUE)}
+
+<<Figure6>>=
+read.table(text="State	Property Levy	Land Tax	Payroll Tax	Stamp Duty	Insurance Taxes	Motor Vehicle Taxes
+NSW	-10%	1%	-3%	-17%	-6%	11%
+Vic	-8%	-7%	10%	0%	7%	-3%
+Qld	22%	-1%	5%	8%	0%	-5%
+WA	-6%	-22%	-44%	-8%	4%	-16%
+SA	10%	29%	21%	41%	-13%	-5%
+Tas	31%	42%	43%	50%	21%	-13%
+ACT	2%	38%	5%	13%	13%	15%
+NT	15%	25%	-7%	23%	12%	11%
+", as.is = TRUE, header = TRUE, sep = "\t", check.names=FALSE) %>%
+  # mutate(State = factor(State, levels = unique(.$State), ordered = TRUE)) %>%
+  gather(fill, y, -State) %>%
+  mutate(y = as.numeric(gsub("%", "", as.character(y)))) %>%
+  mutate(State = factor(State, levels = unique(.$State), ordered = TRUE)) %>%
+  group_by(fill) %>%
+  mutate(sd_y = sd(y)) %>%
+  ungroup %>%
+  group_by(State) %>%
+  mutate(mean_y = mean(row_number(y))) %>%
+  ungroup %>%
+  arrange(sd_y, mean_y) %>%
+  mutate(fill = factor(fill, labels = gsub("\\s", "\n", unique(.$fill)), 
+                       levels = unique(.$fill), ordered = TRUE)
+         ,State = factor(State, labels = paste0(unique(.$State), "  "), levels = unique(.$State), ordered = TRUE)
+         ) %>%
+  grplot(aes(fill = State, y = y, x = fill)) + 
+  geom_bar(stat = "identity", position = "dodge") + 
+  scale_y_continuous(label = function(x) ifelse(x < 0, paste0("\U2212", paste0(abs(x), "%")), paste0(x, "%")),
+                     breaks = c(-25, 0, 25, 50),
+                     limits = c(-50, 60)) + 
+  guides(fill = guide_legend("State\n", ncol = 2)) + 
+  theme(axis.title.x = element_blank(), 
+        legend.position = c(0,1), 
+        legend.justification = c(0,1), 
+        legend.title = element_text(size = 23, lineheight = 0.25, face = "bold"),
+        legend.justification = c(0, 1), 
+        legend.margin = unit(0.001, "npc"))
+@
+
+\clearpage
+<<Figure7>>=
+p_figure7 <- 
+read.table(text="x	 Property levy revenues 	 Net impact 
+NSW	345.22	298.39
+Vic	335.71	285.44
+Qld	241.64	320.69
+WA	321.62	349.06
+SA	282.29	310.10
+Tas	220.92	330.67
+ACT	304.31	291.76
+NT	263.20	671.99
+Aust.	310.69	310.69
+", sep = "\t", header = TRUE, check.names = FALSE) %>%
+  filter(x != "Aust.") %>%
+  mutate(x = factor(x, levels = unique(.$x), ordered = TRUE)) %>%
+  gather(fill, y, -x, factor_key = TRUE) %>%
+  {
+  grplot(., aes(x, y, fill = fill)) + 
+  geom_bar(stat = "identity") +
+  geom_hline(yintercept = 310.69, linetype = 2, size = 1.8) + 
+  facet_grid(~fill) + 
+  scale_y_continuous(expand = c(0,0), label = dollar) + 
+  theme(panel.grid.major.y = element_line(), 
+        axis.title.x = element_blank(), 
+        axis.text.x = element_text(size = 20),
+        strip.background = element_blank(),
+        strip.text = element_text(size = 23, face = "bold"))
+  }
+grid.newpage()
+grid.draw(p_figure7)
+grid.text("Aust. average", x = 0.55, y = 0.48, gp = gpar(fontface = "bold", fontfamily = "helvet", fontsize = 23))
+@
+
+\clearpage
+<<Figure8>>=
+read.table(text="x	y	fill
+Council rates	3	A
+Land tax	9	B
+GST	12	B
+Personal income tax	24	C
+Insurance duty	31	B
+Payroll tax	35	B
+Company tax	37	C
+Commercial stamp duty	74	B
+Residential stamp duty	85	B
+", sep = "\t", header = TRUE) %>%
+  mutate(x = factor(x, levels = rev(unique(.$x)), ordered = TRUE)) %>%
+  grplot(aes(x = x, y = y, fill = fill)) + 
+  geom_bar(stat = "identity") + 
+  scale_y_continuous("cents lost per dollar of revenue", expand = c(0,0), limits = c(0,100)) + 
+  annotate("rect",
+           xmin = 9 - 0.5 * (0:2) - 0.25, 
+           xmax = 9 - 0.5 * (0:2) + 0.25,
+           ymin = 70, ymax = 98, 
+           fill = gpal(6)[c(1,3,5)],
+           colour = "black"
+           ) + 
+  annotate("text", 
+           x = 9 - 0.5 * (0:2), 
+           y = 84, 
+           hjust = 0.5, 
+           vjust = 0.5,
+           size = 18/(14/5),
+           label = c("Local", "State", "Commonwealth"), 
+           colour = c("white", "black", "black")) + 
+  coord_flip() + 
+  scale_fill_manual(values = gpal(6)[c(1,3,5)]) + 
+  theme(panel.grid.major.x = element_line(), 
+        plot.margin = unit(c(0.7, 1.4, 0.7, 0), "lines")) 
+@
+
+<<Figure9>>=
+read.table(text="x	return.future.proptax	return.future.landtax
+1	11.9	11.9
+2	11.9	11.93333
+3	11.9	11.95
+4	11.9	11.96
+5	11.9	11.96667
+6	11.9	11.97143
+7	11.9	11.975
+8	11.9	11.97778
+9	11.9	11.98
+10	11.9	11.98182
+", sep = "\t", header = TRUE) %>%
+  gather(fill, y, -x) %>%
+  mutate(facet = cut(x, 
+                     breaks = c(-Inf, 3.5, 7.5, Inf), 
+                     labels = c("Detached\nhomes", "Medium-density\nhousing", "Apartments"), ordered_result = TRUE)) %>%
+  grplot(aes(x = factor(x), y = y, fill = fill)) + 
+  geom_bar(stat = "identity", position = "dodge") + 
+  scale_x_discrete("Capital improvements as a multiple of land value", expand = c(0,0.5)) +
+  scale_y_continuous(expand = c(0,0), label = function(x) percent(x / 100), limits = c(0, 12.5)) + 
+  facet_grid(~facet, scales = "free_x", space = "free_x") +
+  theme(panel.margin.x = unit(0, "inches"), strip.background = element_blank(), strip.text = element_text(face = "bold"))
+@
+
+<<Figure10>>=
+read.table(text="x	Rates.average	HSL.average
+Lowest	1169.458	731.9371
+2nd	1017.742	553.8729
+3rd	1081.405	585.4611
+4th	1220.779	755.3482
+5th	1236.756	772.656
+6th	1254.257	712.3589
+7th	1245.221	828.6321
+8th	1340.055	927.9036
+9th	1273.895	1008.4842
+Highest	1410.946	1591.4925
+", sep = "\t", header = TRUE) %>%
+  mutate(x = 1:n()) %>%
+  gather(fill, y, -x) %>%
+  mutate(fill = ifelse(grepl("Rates", fill), 
+                       "Council rates", 
+                       "Property tax")) %>%
+  grplot(aes(factor(x), y, fill = fill)) + 
+  geom_bar(stat = "identity", position = "dodge") + 
+  scale_y_continuous(label = grattan_dollar, expand = c(0,0), limits = c(0, 1600)) + 
+  xlab("Household income decile") + 
+  guides(fill = guide_legend(keywidth = 23, keyheight = 23, default.unit = "pt")) + 
+  theme(legend.position = c(0, 1), 
+        legend.title = element_blank(), 
+        legend.margin = unit(5.5, "pt"),
+        legend.justification = c(0, 1))
+@
+
+<<Figure11, out.height="10in", fig.height=10, fig.showtext=TRUE>>=
+Figure11_A <- 
+  read.table(text="HHDI.quintiles.eq	HHW.quintiles.eq	HSL.average
+1	1	6.396734
+1	2	208.000838
+1	3	395.55003
+1	4	596.045488
+1	5	1252.431145
+2	1	14.188385
+2	2	278.890596
+2	3	473.452856
+2	4	610.91278
+2	5	1248.254237
+3	1	40.185196
+3	2	290.57267
+3	3	549.58351
+3	4	761.210236
+3	5	1246.858608
+4	1	31.201629
+4	2	280.916408
+4	3	591.727079
+4	4	843.547296
+4	5	1522.14065
+5	1	37.600337
+5	2	288.632257
+5	3	649.130198
+5	4	935.942275
+5	5	1933.304089
+", sep = "\t", header = TRUE, as.is = TRUE) %>%
+  grplot(aes(fill = factor(HHDI.quintiles.eq), x = factor(HHW.quintiles.eq), y = HSL.average)) + 
+  theme_hugh(base_family = "helvet") + 
+  geom_bar(stat = "identity", position = "dodge") + 
+  scale_fill_manual(values = rev(gpal(6)[1:5])) + 
+  scale_y_continuous(expand = c(0,0), limits = c(0, 2000), label = grattan_dollar) + 
+  theme(axis.title.x = element_blank(), 
+        plot.margin = unit(c(0.7, 0.1, 0.7, 0), "lines"),
+        plot.title = element_text(hjust = 0.5, vjust = 0, face = "plain", lineheight = 0.5),
+        axis.text.x = element_blank()) + 
+  ggtitle("Average levy per household") + 
+  annotate("text", 
+           x = 0.4 + 0.25, y = 1500, 
+           size = (20)/(14/5),
+           vjust = 0, hjust = 0, 
+           label = "Income quintile\n", 
+           lineheight = 0.5,
+           family = "helvet",
+           fontface = "bold") + 
+  annotate("rect", 
+           xmin = 0.4 + 0.25, xmax = 1.0 + 0.25, 
+           ymin = (2000/1.2) * (1.2 - 1.5 * (0:4) / 12) - 500, 
+           ymax = (2000/1.2) * (1.2 - 1.5 * (1:5) / 12) - 500, 
+           fill = gpal(6)[1:5]) + 
+  annotate("text",
+           x = 0.7 + 0.25,
+           y = (2000/1.2) * (1.1375 - 1.5 * (0:4) / 12) - 500,
+           family = "helvet",
+           vjust = 0.5,
+           hjust = 0.5,
+           size = 18/(14/5),
+           label = c("Highest", "4th", "3rd", "2nd", "Lowest"), 
+           colour = c("white", rep("black", 4)))
+
+Figure11_B <- 
+  read.table(text="HHDI.quintiles.eq	HHW.quintiles.eq	Tot_levy_paid
+1	1	0.003552849
+1	2	0.044742504
+1	3	0.127503186
+1	4	0.211401671
+1	5	0.278437598
+2	1	0.006230397
+2	2	0.090749935
+2	3	0.160377183
+2	4	0.213102241
+2	5	0.308712698
+3	1	0.013827661
+3	2	0.121591582
+3	3	0.198220761
+3	4	0.232525441
+3	5	0.336924027
+4	1	0.00773711
+4	2	0.118247446
+4	3	0.229286222
+4	4	0.267628028
+4	5	0.493354235
+5	1	0.003879851
+5	2	0.090676167
+5	3	0.183273639
+5	4	0.343788239
+5	5	1.2234964
+", sep = "\t", header = TRUE) %>%
+  grplot(aes(x = factor(HHDI.quintiles.eq), fill = factor(HHW.quintiles.eq), y = Tot_levy_paid)) + 
+  geom_bar(stat = "identity", position = "dodge") + 
+  scale_fill_manual(values = rev(gpal(6)[1:5])) + 
+  scale_y_continuous(expand = c(0,0), label = function(x) paste0(grattan_dollar(x), "\u2009", "bn")) + 
+  theme_hugh(base_family = "helvet") + 
+  xlab("Net worth quintile") + 
+  theme(plot.margin = unit(c(0.0, 0.0, 0.7, 0), "lines"),
+        plot.title = element_text(hjust = 0.5, vjust = 0, face = "plain", lineheight = 0.5)) + 
+  ggtitle("Total levy paid by all households")
+
+plot_grid(Figure11_A, Figure11_B, ncol = 1, align = "hv")
+@
+
+<<Figure12, out.height="10in", fig.height=10>>=
+Figure12_A <- 
+  read.table(text="x	y
+1	4.840687
+2	36.66712
+3	173.219857
+4	376.659723
+5	493.155203
+6	568.976704
+7	672.711731
+8	823.98055
+9	1050.737306
+10	2065.114096
+", sep = "\t", header = TRUE) %>%
+  mutate(`Net worth decile` = factor(x)) %>%
+  {
+  grplot(., aes(x = `Net worth decile`,y)) + 
+  geom_bar(stat = "identity", fill = col.5) + 
+  scale_y_continuous(expand = c(0,0), limits = c(0, 1.1 * max(.$y)), label = grattan_dollar) + 
+  theme(axis.title.x = element_blank(), 
+        axis.text.x = element_blank(), 
+        panel.grid.major.y = element_line(), 
+        plot.title = element_text(hjust = 0.5, vjust = 0, face = "plain", lineheight = 0.5)) + 
+  ggtitle("Average annual levy per household\n")
+  }
+
+Figure12_B <-
+read.table(text="x	y
+1	0.02780422
+2	0.05465747
+3	0.11171523
+4	0.13093179
+5	0.11603915
+6	0.10299752
+7	0.09921431
+8	0.09309266
+9	0.08392721
+10	0.06759998
+", sep = "\t", header = TRUE) %>%
+  mutate(y = y / 100) %>%
+  mutate(`Net worth decile` = factor(x)) %>%
+  {
+  grplot(., aes(x = `Net worth decile`, y)) + 
+  geom_bar(stat = "identity") + 
+  scale_y_continuous(expand = c(0,0), limits = c(0, 1.1 * max(.$y)), label = percent) + 
+  theme(plot.title = element_text(hjust = 0.5, vjust = 0, face = "plain", lineheight=0.5), 
+        plot.margin = unit(c(0.0, 0.0, 0.7, 0), "lines"),
+        panel.grid.major.y = element_line()) + 
+  ggtitle("Average annual levy as a share of net worth\n")
+  }
+
+plot_grid(Figure12_A, Figure12_B, align = "hv", ncol = 1)
+@
+
+
+% SUPER
+<<Super-part>>=
+knitr::opts_chunk$set(fig.path = "./Super-tax-targeting/super-atlas/")
+@
+\newpage
+<<Figure1-from-atlas, out.height="8in", fig.height=8>>=
+read_excel("./Super-tax-targeting/super-atlas/FIgure1-1.xlsx") %>%
+  mutate(Age = factor(Age, levels = unique(.$Age), ordered = TRUE)) %>%
+  gather(fy_year, average_net_benefit, -Age) %>%
+  filter(complete.cases(.)) %>%
+  group_by(Age) %>%
+  mutate(age_label = 
+           if (all(average_net_benefit < 0)){
+             ifelse(average_net_benefit == min(average_net_benefit), 
+                    as.character(Age), 
+                    NA_character_)
+           } else {
+             ifelse(average_net_benefit == max(average_net_benefit), 
+                    as.character(Age), 
+                    NA_character_)
+           }, 
+         vjust = if (all(average_net_benefit < 0)) "top" else "bottom", 
+         Year = fy2yr(fy_year)) %>%
+  {
+    grplot(., aes(x = Year, y = average_net_benefit, fill = Age, colour = Age, group = Age), reverse = TRUE) + 
+      geom_area(alpha = 0.5, colour = NA) + 
+      geom_text(aes(label = age_label, y = average_net_benefit + sign(average_net_benefit) * 500, vjust = vjust),
+                hjust = "inward",
+                size = 20/(14/5),
+                family = "helvet",
+                fontface = "bold",
+                na.rm = TRUE) + 
+      geom_line(size = 1.5) + 
+      scale_y_continuous(label = grattan_dollar) + 
+      scale_x_continuous("FY ending", breaks = c(1989, 1994, 1999, 2004, 2010), labels = c("  89", "", "", "", "10  ")) + 
+      theme(panel.grid.major.y = element_line()) + 
+      facet_grid(~Age) + 
+      theme_hugh(base_family = "helvet") + 
+      theme(axis.title.x = element_text(size = 20),
+            axis.text.x = element_text(size = 18),
+            strip.background = element_blank(), 
+            strip.text = element_blank())
+  }
+@
+
+<<Figure2-1>>=
+read.table(text="Age	Home 	Other assets	Super 	Age pension
+45-54	369.2	395.4	180.3	 345.69 
+55-64	460.1	455.9	323.7	 345.69 
+65-74	468.1	518.2	243.9	 276.55 
+75 and over	455.3	321.5	74.1	 108.85 
+", sep = "\t", header = TRUE, check.names = FALSE) %>%
+  gather(x, y, -Age) %>%
+  mutate(Age = paste0("\n", Age, "\n")) %>%
+  grplot(aes(x = x, y = y, fill = Age)) +
+  guides(fill = guide_legend(title = "Age\n")) + 
+  geom_bar(stat = "identity", position = "dodge") + 
+  scale_y_continuous(label = function(x) grattan_dollar(x * 1000), expand = c(0,0), limits = c(0, 600)) + 
+  theme(axis.title.x = element_blank(), 
+        legend.title = element_text(size = 23, lineheight = 0.125),
+        legend.text = element_text(lineheight = 0.125, size = 21, margin = margin(11.5, 11.5, 11.5, 11.5, "pt")),
+        legend.key = element_rect(size = 0.5), 
+        legend.key.size = unit(21*1.25, "pt"),
+        legend.position = c(1,1), 
+        legend.justification = c(1,1))
+@
+
+<<Figure2-3>>=
+fig2_3p <- 
+read.table(text="x	19% ($18,200-$37,000)	32.5% ($37,000-$80,000)	37% ($80,000-$180,000)	45% ($180,000+)
+Super (pre-tax)	 8.0 	-17.1 	-26.6 	-42.4 
+Super (post-tax)	 13.7 	 13.7 	 13.7 	 13.7 
+Own home	 0   	 0   	 0   	 0   
+Domestic equities	-1.3 	 10.6 	 14.7 	 21.2 
+Foreign equities	 17.7 	 31.8 	 36.7 	 44.4 
+Rental property	 17.7 	 31.8 	 36.7 	 44.4 
+Term deposit	 32.6 	 59.1 	 67.7 	 80.6 
+", sep = "\t", check.names = FALSE, header = TRUE) %>%
+  gather(fill, y, -x, factor_key = TRUE) %>%
+  mutate(fill = factor(fill, 
+                       levels = unique(.$fill), 
+                       labels = gsub("^(.*)$", "\n\\1\n", unique(.$fill)), 
+                       ordered = TRUE), 
+         x = factor(x, levels = unique(.$x), labels = gsub("\\s", "\n", unique(.$x)))) %>%
+  grplot(aes(x, y, fill = fill)) + 
+  geom_bar(stat = "identity", position = "dodge") +
+  # geom_hline(yintercept = 0) + 
+  scale_y_continuous(limits = c(-50, 100), label = function(x) grattan_percent(x / 100), expand = c(0,0)) + 
+  guides(fill = guide_legend("Personal income tax bracket\n")) + 
+  theme(axis.title.x = element_blank(), 
+        legend.title = element_text(lineheight = 0.2),
+        legend.text  = element_text(lineheight = 0.2),
+        panel.grid.major.y = element_line(), 
+        legend.margin = unit(0.001, "npc"),
+        legend.position = c(0.015,1), 
+        legend.justification = c(0,1))
+grid.newpage()
+fig2_3grob <- ggplotGrob(fig2_3p)
+# fig2_3grob$grobs[[8]][[1]][[1]][[4]][4] <- unit(36, 'pt')
+grid::grid.draw(fig2_3grob)
+@
+
+<<Figure2-4>>=
+read.table(text="Author	AdditionalQQsavings	WouldQQhave beenQQsavedQQanyway
+Venti 	55%	45%
+Engen 	30%	70%
+Attanasio	9%	91%
+Benjamin	25%	75%
+Ayuso	19%	81%
+Chetty	1%	99%
+", header = TRUE, sep = "\t", check.names = FALSE, as.is = TRUE) %>%
+  gather(fill, y, -Author) %>%
+  mutate(y = as.numeric(gsub("%", "", as.character(y)))) %>%
+  mutate(fill = factor(fill, levels = unique(.$fill), labels = gsub("QQ", "\n", unique(.$fill)), ordered = TRUE), 
+         x = factor(Author, levels = unique(.$Author), ordered = TRUE)) %>%
+  stacked_bar_with_right_labels(scale_y_args = list(expand = c(0,0), 
+                                                    label = function(x) percent(x / 100)),
+                                scale_x_args = list(expand = c(0, 0.5), name = "Study reliability"), 
+                                text_family = "helvet", right_margin = 7,
+                                nudge_up = c(5,0), barwidth = 0.75,
+                                theme.args = list(axis.title.x = element_text(margin = margin(15,0,11,0,"pt"))))
+grid.draw(grid.segments(x0 = 0.6, x1 = 0.8, y0 = 0.0475, y1 = 0.0475, 
+                        arrow = arrow(type = "closed", angle = 20), 
+                        gp = gpar(fill = "black", lwd = 2, lineend = "square", linejoin = "mitre")))
+grid.draw(grid.segments(x0 = 0.15, x1 = 0.355, y0 = 0.0475, y1 = 0.0475, 
+                        gp = gpar(fill = "black", lwd = 2, lineend = "square", linejoin = "mitre")))
+
+@
+
+<<Figure2-5>>=
+read.table(text="Type	2011	2012	2013	2014	2015	2016	2017	2018
+Contributions 	10500	10900	10200	13550	15550	16450	17150	18100
+Earnings 	10550	12150	13150	14100	11750	13700	18250	22450
+", sep = "\t", header = TRUE, check.names = FALSE, as.is = TRUE) %>%
+  gather(year, y, -Type) %>%
+  mutate(year = as.numeric(as.character(year))) %>%
+  grplot(aes(x = year, y = y, group = Type, colour = Type)) + 
+  annotate("rect", 
+           xmin = 2015, xmax = 2018, 
+           ymin = -Inf, ymax = Inf, 
+           fill = theGrey, alpha = 0.5) + 
+  geom_line() + 
+  scale_x_continuous(expand = c(0,0)) + 
+  scale_y_continuous(label = function(x) paste0(grattan_dollar(x / 1000), "\u2009", "bn"), breaks = 1000*seq(10, 25, by = 5), limits = 1000*c(10,25)) + 
+  annotate("text", 
+           x = c(2013.25, 2013.5),
+           y = c(10500, 14500), 
+           label = rev(c("Earnings tax breaks", "Contributions tax breaks")), 
+           size = 20/(14/5), 
+           family = "helvet", 
+           fontface = "bold",
+           hjust = c(0, 1), 
+           vjust = 0.5,
+           colour = gpal(2)) + 
+  theme(plot.margin = margin(11, 25, 11, 0), 
+        axis.title.x = element_blank())
+@
+
+<<Figure3-1>>=
+read.table(text="Bottom decile	-0.9
+2nd	1.1
+3rd	2
+4th	5.2
+5th	6.8
+6th	8
+7th	9.5
+8th	12.2
+9th	18.6
+Top decile	37.5
+", sep = "\t", header = FALSE) %>%
+  mutate(V1 = factor(V1, 
+                     levels = unique(.$V1), 
+                     labels = gsub("\\s", "\n", unique(.$V1)),
+                     ordered = TRUE)) %>%
+  grplot(aes(V1, V2)) + 
+  geom_bar(stat = "identity") + 
+  xlab("Income decile") + 
+  scale_y_continuous(label = function(x) grattan_percent(x / 100)) + 
+  geom_hline(yintercept = 0)
+@
+
+<<Figure3-2>>=
+pfig3_2 <-
+  read.table(text="row.names	Liabilities	Home	Super	Other property	Other Financial Assets	Other Assets
+50 to 54	-0.251673166	0.603279069	0.285002758	0.264380966	0.077990621	0.33102828
+55 to 59	-0.219256387	0.666573877	0.390349578	0.367634815	0.124950406	0.36768142
+60 to 64	-0.166554833	0.680628059	0.430111265	0.333133918	0.094975399	0.408614208
+65 and over	-0.106014081	0.745533878	0.583982977	0.552943261	0.331059546	0.434518569
+", sep = "\t", header = TRUE, check.names = FALSE) %>%
+  mutate(x = factor(row.names, levels = unique(.$row.names), ordered = TRUE)) %>%
+  select(-row.names) %>%
+  gather(fill, y, -x, factor_key = TRUE) %>%
+  mutate(fill = factor(fill, 
+                       levels = unique(.$fill), 
+                       labels = gsub("al Assets", "al\nAssets", unique(.$fill)),  
+                       ordered = TRUE)) %>%
+  arrange(fill) %T>% 
+         {
+           liabilities <<- filter(., fill == "Liabilities")
+         } %>% 
+  filter(fill != "Liabilities") %>%
+  mutate(text.label = ifelse(x == max(x), 
+                             as.character(fill), 
+                             NA_character_)) %>%
+  # it should be as high as the corresponding bar:
+  # all the way up the previous, then half of the corresponding height
+
+  mutate(fill = factor(fill, levels = unique(.$fill), ordered = TRUE)) %>%
+  arrange(x) %>%
+  group_by(x) %>%
+  mutate(text.y = -y/2 + cumsum(y), 
+         text.x = max(as.numeric(x)) + 0.5) %>%
+  ungroup %>%
+  
+
+{
+  grplot(., 
+         aes(x = x, y = y, fill = fill, order = fill)) + 
+    theme_hugh(base_family = "helvet") + 
+    geom_hline(yintercept = 0) +
+    ggplot2::geom_bar(stat = "identity", width = 0.75) +
+    geom_text(data = ., 
+              aes(label = text.label, x = text.x, y = text.y, colour = fill), 
+              na.rm = TRUE, 
+              hjust = 0, 
+              family = "helvet", 
+              lineheight = 0.8,
+              size = 20/(14/5), 
+              fontface = "bold") +
+    geom_bar(data = liabilities, 
+             stat = 'identity', 
+             width = 0.75,
+             mapping = aes(x = x, y = y), 
+             fill = gpal(6)[1]) + 
+    annotate("text", 
+             x = 4.5, 
+             y = -0.1, 
+             label = "Liabilities", 
+             fontface = "bold",
+             family = "helvet",
+             hjust = 0,
+             size = 20/(14/5), 
+             colour = gpal(6)[1]) +  # 10.5590909090909
+    xlab("Age of head of household") + 
+    geom_hline(yintercept = 0) + 
+    scale_y_continuous(label = function(x) paste0("$", x, "\U2009", "m")) + 
+    scale_x_discrete(expand = c(0, 0.5)) + 
+    theme(plot.margin = grid::unit(c(0.7,10.5,0.5,0.00), "lines"))
+}
+grid::grid.newpage()
+gt <- ggplot2::ggplot_gtable(ggplot2::ggplot_build(pfig3_2))
+gt$layout$clip[gt$layout$name == "panel"] <- "off"
+grid::grid.draw(gt)
+
+
+@
+
+<<Figure3-3>>=
+read.table(text="Q	Wealth	Pensions	Wages	Investment & Business earnings	Superannuation	Other Income
+Bottom	7184.482388	21445.51088	4710.908843	421.5037954	340.9684605	1090.535982
+2	125431.4351	22597.63776	11540.56019	785.8486564	2396.249259	1876.349741
+3	298603.7919	22220.46977	7564.751054	1977.001234	2238.238709	1025.630393
+4	399979.4266	20318.07483	8222.894243	3404.365173	3231.117505	1791.141737
+5	509362.5027	22330.09641	10825.15427	2909.278187	6072.221807	764.5798208
+6	638049.0164	19958.97619	9389.735994	4439.87058	5829.596485	1226.830352
+7	817931.3953	15261.58207	28027.63578	7720.789015	9867.209121	1795.854249
+8	1056308.481	13794.44579	20750.24218	8918.319084	11953.17413	785.8116811
+9	1556960.173	10060.19	43341.50549	16300.64187	18078.56605	663.412083
+Top	3513145.732	4048.484378	28595.07355	60614.03161	23767.86339	10589.54097
+", sep = "\t", header = TRUE, check.names = FALSE) %>%
+  select(-Wealth) %>%
+  gather(fill, y, -Q, factor_key = TRUE) %>%
+  mutate(fill = factor(fill, levels = unique(.$fill), ordered = TRUE), 
+         Quintile = factor(Q, levels = unique(.$Q), ordered = TRUE)) %>%
+{
+  grplot(., aes(x = Quintile, y = y, fill = fill, order = fill)) + 
+  geom_bar(stat = "identity") + 
+  scale_y_continuous(label = dollar, expand = c(0,0), limits = c(0, 130e3)) + 
+  xlab("Net wealth quintile") + 
+  theme(legend.position = c(0,1), 
+        legend.justification = c(0,1),
+        legend.background = element_rect(fill = "white"),
+        legend.title = element_blank(), 
+        legend.margin = unit(0.01, "npc")) + 
+  guides(fill = guide_legend(reverse = TRUE))
+}
+@
+
+<<Figure3-4>>=
+read.table(text="Q	Wealth	Pensions	Wages	Investment & Business earnings	Private pensions (incl. super)	Other Income
+Bottom	2150646.372	6384.498863	1407.222557	14402.15333	5032.301422	248.0000583
+2	2026965.296	7515.378791	7299.893717	16730.74957	16621.19992	361.990212
+3	2631970.372	4038.111046	11753.16255	34016.71349	20770.2607	453.0296767
+4	2722069.676	8548.292016	34471.46274	33754.61735	33833.82613	369.6105886
+Top	3090402.317	8907.140325	121814.8446	91640.00352	28323.25794	25726.0073
+", sep = "\t", header = TRUE, check.names = FALSE) %>%
+  select(-Wealth) %>%
+  gather(fill, y, -Q) %>%
+  mutate(Q = factor(Q, levels = unique(.$Q), ordered = TRUE), 
+         fill = factor(fill, levels = unique(.$fill), ordered = TRUE)) %>%
+  grplot(aes(x = Q, y = y, fill = fill)) + 
+  geom_bar(stat = "identity") + 
+  scale_y_continuous(label = grattan_dollar, expand = c(0,0), 
+                     breaks = seq(0, 280e3, by = 70e3), limits = c(0, 280e3)) + 
+  xlab("Gross income quintile") + 
+  theme(legend.position = c(0,1), 
+        legend.justification = c(0,1),
+        legend.background = element_rect(fill = "white"),
+        legend.title = element_blank(), 
+        legend.margin = unit(0.01, "npc")) + 
+  guides(fill = guide_legend(reverse = TRUE))
+@
+
+<<Figure3-and-5portrait>>=
+fig35 <- 
+  read_excel("./Super-tax-targeting/super-atlas/fig35.xlsx") %>%
+  mutate(housing_inclusion = factor(housing_inclusion, levels = c("Including housing", "Excluding housing"))) %>%
+  mutate(working = ifelse(working == "retired", "Retired", "Working"))
+
+asfa_standards <- 
+  read_excel("./Super-tax-targeting/super-atlas/ASFA-retirement-standards.xlsx") %>%
+  gather(housing_inclusion, expenditure, -Standard, -relationship_status) %>%
+  spread(Standard, expenditure) 
+
+# Original
+fig35 %>%
+  merge(asfa_standards) %T>%
+  {stopifnot(nrow(.) == nrow(fig35))} %>%
+  filter(complete.cases(.)) %>%
+  filter(relationship_status == "Single") %>%
+  mutate(asfa_comfortable_label = ifelse(Percentile == 10 & housing_inclusion == "Including housing", 
+                                         "ASFA\nComfortable", 
+                                         NA_character_), 
+         asfa_modest_label = ifelse(Percentile == 10 & housing_inclusion == "Including housing", 
+                                    "ASFA\nModest", 
+                                    NA_character_)) %>%
+  mutate(Percentile = factor(Percentile)) %>%
+  grplot() + 
+  geom_bar(aes(x = Percentile, fill = working, y = expenditure), 
+           stat = "identity", position = "dodge") +
+  geom_hline(aes(yintercept = `ASFA comfortable`), colour = theGrey, size = 1.25) +
+  geom_text(aes(x = Percentile, y = `ASFA comfortable`, label = asfa_comfortable_label),
+            hjust = 0, 
+            nudge_x = -0.5,
+            vjust = -0.1,
+            colour = theGrey,
+            fontface = "bold", 
+            family = "helvet",
+            lineheight = 0.9,
+            size = 20/(14/5),
+            na.rm = TRUE) +
+  geom_text(aes(x = Percentile, y = `ASFA modest`, label = asfa_modest_label),
+            hjust = 0, 
+            nudge_x = -0.5,
+            vjust = -0.1,
+            colour = theGrey,
+            family = "helvet",
+            lineheight = 0.9,
+            size = 20/(14/5),
+            na.rm = TRUE) +
+  geom_hline(aes(yintercept = `ASFA modest`), colour = theGrey) +
+  facet_grid(~ housing_inclusion) + 
+  theme(strip.background = element_rect(colour = NA, fill = NA), 
+        strip.text = element_text(colour = theGrey, hjust = 0, size = 22)) + 
+  geom_blank(aes(x = Percentile, y = expenditure * 1.03)) + 
+  scale_y_continuous("Annual expenditure (2015 dollars)", 
+                     label = function(x) paste0("  ", grattan_dollar(x)), 
+                     breaks = seq(0, 120e3, by = 20e3), expand = c(0,0))
+@
+
+<<Figure3-and-5, out.height="11in", fig.height=11>>=
+if (!file.exists("D:/Github/Data/HES/hes10bp.dta")){
+  stop("Unable to continue as the location of hes10bp.dta could not be found.\n", 
+       "I looked at 'D:/Github/Data/HES/hes10bp.dta'.")
+}
+
+hes10 <- 
+  read.dta("D:/Github/Data/HES/hes10bh.dta") 
+
+
+dat_include_housing <- 
+  hes10 %>%
+  select(AGERHBC, EXTLCSER, EXPTL, contains("EXP"), FAMCOMP, HESHHWT) %>% 
+  mutate(Age = as.numeric(stringr::str_extract(as.character(AGERHBC), "[0-9]{2}")), 
+         famcomp = as.numeric(FAMCOMP),
+         Composition = ifelse(famcomp %in% c(8, 2, 3, 4), 
+                              "Single", 
+                              ifelse(famcomp == 1, 
+                                     "Couple", 
+                                     "Other")), 
+         housing_costs = EXP01 + EXP15 + EXP16, 
+         non_housing = EXTLCSER - pmaxC(housing_costs, 0), 
+         working = ifelse(between(Age, 60, 80), "Retired", "Working")) %>%
+  arrange(Composition, working, EXTLCSER) %>%
+  group_by(Composition, working) %>%
+  mutate(prop = 1 - cumsum(HESHHWT) / sum(HESHHWT)) %>%
+  ungroup %>%
+  mutate(Yearly_expenditure = 52.5 * EXTLCSER, 
+         ASFA_comfortable_excl_housing = ifelse(Composition == "Couple", 
+                                                53802.77, 
+                                                38563.90), 
+         ASFA_comfortable_incl_housing = ifelse(Composition == "Couple", 
+                                                58784, 
+                                                42861),
+         ASFA_modest_incl_housing = ifelse(Composition == "Single", 
+                                           23662, 
+                                           42861), 
+         ASFA_modest_excl_housing = ifelse(Composition == "Single", 
+                                           19954.55, 
+                                           30492.29), 
+         ASFA_comfortable = ASFA_comfortable_incl_housing, 
+         ASFA_modest = ASFA_modest_incl_housing) %>%
+  filter(Composition %in% c("Single", "Couple"))
+
+dat_exclude_housing <- 
+  hes10 %>%
+  select(AGERHBC, EXTLCSER, EXPTL, contains("EXP"), FAMCOMP, HESHHWT) %>% 
+  mutate(Age = as.numeric(stringr::str_extract(as.character(AGERHBC), "[0-9]{2}")), 
+         famcomp = as.numeric(FAMCOMP),
+         Composition = ifelse(famcomp %in% c(8, 2, 3, 4), 
+                              "Single", 
+                              ifelse(famcomp == 1, 
+                                     "Couple", 
+                                     "Other")), 
+         housing_costs = EXP01 + EXP15 + EXP16, 
+         non_housing = EXTLCSER - pmaxC(housing_costs, 0), 
+         working = ifelse(between(Age, 60, 80), "Retired", "Working")) %>%
+  group_by(Composition, working) %>%
+  arrange(Composition, working, non_housing) %>%
+  mutate(prop = 1 - cumsum(HESHHWT) / sum(HESHHWT)) %>%
+  ungroup %>%
+  mutate(Yearly_expenditure = 52.5 * non_housing, 
+         ASFA_comfortable_excl_housing = ifelse(Composition == "Couple", 
+                                                53802.77, 
+                                                38563.90), 
+         ASFA_comfortable_incl_housing = ifelse(Composition == "Couple", 
+                                                58784, 
+                                                42861),
+         ASFA_modest_incl_housing = ifelse(Composition == "Single", 
+                                           23662, 
+                                           42861), 
+         ASFA_modest_excl_housing = ifelse(Composition == "Single", 
+                                           19954.55, 
+                                           30492.29), 
+         ASFA_comfortable = ASFA_comfortable_excl_housing, 
+         ASFA_modest = ASFA_modest_excl_housing) %>%
+  filter(Composition %in% c("Single", "Couple"))
+
+bind_rows("Including housing" = dat_include_housing, 
+          "Excluding housing" = dat_exclude_housing, .id = "IncludeHousing") %>%
+  filter(between(Yearly_expenditure, 0, 120e3)) %>%
+  mutate(facet = paste(Composition, IncludeHousing, sep = "\n")) %>%
+  grplot(aes(x = Yearly_expenditure, 
+             y = prop, 
+             colour = working,
+             group = interaction(Composition, working, IncludeHousing))) + 
+  geom_line() + 
+  scale_y_continuous(label = percent, breaks = seq(0, 1, 0.2), limits = c(0,1), expand = c(0,0)) + 
+  scale_x_continuous("Yearly expenditure ('000)", label = function(x) grattan_dollar(x / 1000)) + 
+  geom_vline(aes(xintercept = ASFA_comfortable), colour = theGrey, size = 1.5) + 
+  geom_vline(aes(xintercept = ASFA_modest), colour = theGrey) + 
+  facet_grid(facet ~ .) + 
+  theme(panel.grid.major.y = element_line(),
+        legend.position = c(1,1), 
+        panel.margin.y = unit(23*1.5, "pt"),
+        legend.justification = c(1,1),
+        strip.background = element_rect(fill = grey(0.5, 0.1), color = theGrey),
+        strip.text = element_text(hjust = 0),
+        strip.text.y = element_text(angle = 0, size = 18, face = "plain", color = "black"))
+
+@
+
+<<Figure3-7>>=
+read.table(text="Decile	% of time
+10	 0.48 
+9	 0.26 
+8	 0.10 
+7	 0.06 
+6	 0.04 
+5	 0.02 
+1 to 4	 0.05 
+", sep = "\t", header = TRUE, check.names = FALSE) %>% 
+  mutate(Decile = factor(Decile, levels = unique(.$Decile), ordered = TRUE), 
+         prop = `% of time`) %>%
+  mutate(prop = prop / sum(prop)) %>%
+  mutate(prop2 = -prop / 2 + cumsum(prop)) %>%
+  # suppressWarnings({pie(x = prop, labels = as.character(Decile), col = gpal(length(Decile)), clockwise = TRUE, family = "helvet")})
+  grplot(aes(x = 1, y = prop, fill = Decile)) + 
+  geom_bar(stat = "identity", position = "fill") + 
+  geom_text(aes(y = prop2, x = ifelse(Decile == "1 to 4", 1.6, 1.2), 
+                label = as.character(Decile), 
+                colour = Decile == "10"), 
+            size = 20/(14/5), 
+            fontface = "bold", 
+            family = "helvet") + 
+  scale_colour_manual(values = c("black", "white")) + 
+  theme_void() + 
+  theme(legend.position = "false", 
+        plot.margin = margin(0,0,0,0)) + 
+  coord_polar(theta = "y") 
+@
+
+<<Figure3-7-bar>>=
+read.table(text="Decile	% of time
+10	 0.48 
+9	 0.26 
+8	 0.10 
+7	 0.06 
+6	 0.04 
+5	 0.02 
+1 to 4	 0.05 
+", sep = "\t", header = TRUE, check.names = FALSE) %>% 
+  arrange(n():1) %>%
+  mutate(Decile = factor(Decile, levels = unique(.$Decile), ordered = TRUE), 
+         prop = `% of time`) %>%
+  mutate(Earning = prop / sum(prop), Population = ifelse(Decile == "1 to 4", 0.4, 0.1)) %>%
+  gather(x, y, Earning:Population) %>%
+  grplot(aes(x, y, fill = Decile), reverse = TRUE) + 
+  geom_bar(stat = "identity", position = "fill", width = 0.75) + 
+  scale_x_discrete(expand = c(0,0.25)) +
+  scale_y_continuous(label = percent, expand = c(0,0)) + 
+  theme(axis.title.x = element_blank(), plot.margin = margin(t = 22, r = 33, b = 11)) + 
+  coord_flip()
+@
+
+<<Figure3-8-marimekko>>=
+read.table(text="sum_topdecile	xmax.ppt	Q10	Q09	Q08	Q07	Q06	Q05	QX
+1	23.22012229	0.098578679	0.337212437	0.205007131	0.141718017	0.081631476	0.043796741	0.092055519
+2	36.55795152	0.199010583	0.386486619	0.162048614	0.094082127	0.062046624	0.031488895	0.064836539
+3	46.47883256	0.277310751	0.410906551	0.124348061	0.074953799	0.037129935	0.025340705	0.050010198
+4	52.46252708	0.391560926	0.331661426	0.122665469	0.072935807	0.037250555	0.007712726	0.036213092
+5	58.81828155	0.450218865	0.348795715	0.075276211	0.045200497	0.032999501	0.008909206	0.038600005
+6	65.49425034	0.501008412	0.326840315	0.077126224	0.038328057	0.023698873	0.010290532	0.022707588
+7	71.89791535	0.58241603	0.2493799	0.062483466	0.025355482	0.022090573	0.012918848	0.0453557
+8	77.21071953	0.647087755	0.235511724	0.048111353	0.015552521	0.020045426	0.012556832	0.02113439
+9	81.97059204	0.720551422	0.172889176	0.038065265	0.020275204	0.006780409	0.007158488	0.034280037
+10	86.9255449	0.785650673	0.145422495	0.016884345	0.008315149	0.017007135	0.004048544	0.022671658
+11	92.5706062	0.865730158	0.092138469	0.014336435	0.006540449	0.007241142	0.003328734	0.010684612
+12	100	0.925509303	0.046564361	0.005090112	0.004167724	0.002683887	0.001417708	0.014566906
+", sep = "\t", header = TRUE) %>%
+  select(-sum_topdecile) %>%
+  gather(fill, y, Q10:QX, -xmax.ppt, factor_key = TRUE) %>%
+  mutate(fill = factor(fill, levels = rev(unique(.$fill)), ordered = TRUE)) %>%
+  arrange(xmax.ppt, desc(fill)) %>%
+  group_by(xmax.ppt) %>%
+  mutate(ymax = cumsum(y), 
+         ymin = lag(ymax, default = 0)) %>%
+  ungroup %>%
+  group_by(fill) %>%
+  arrange(xmax.ppt) %>%
+  mutate(xmin.ppt = lag(xmax.ppt, default = 0), 
+         width = xmax.ppt - lag(xmax.ppt, default = 0)) %>%
+  ungroup %>%
+  mutate(fill = factor(fill, levels = unique(.$fill), ordered = TRUE)) %>%
+  grplot(aes(fill = fill), reverse = TRUE) + 
+  # geom_bar(aes(width = width), stat = "identity", position = "stack", colour = "black") + 
+  geom_rect(aes(xmin = xmin.ppt, xmax = xmax.ppt, ymin = ymin, ymax = ymax, colour = fill)) + 
+  scale_y_continuous(label = percent, expand = c(0,0))  + 
+  scale_x_continuous(label = function(x) percent(x / 100), expand = c(0,0)) + 
+  xlab("Percentage of those spending at least 1 year in top decile") + 
+  theme(plot.margin = margin(t = 11, r = 33, b = 5.5), 
+        axis.title.x = element_text(face = "bold"))
+@
+
+<<Figure3-8>>=
+marimekko_data <- 
+  read.table(text="sum_topdecile	Q10	Q09	Q08	Q07	Q06	Q05	QX	N
+1	0.091470562	0.274340607	0.191958326	0.146982558	0.102346202	0.053834535	0.139067211	16730562.26
+2	0.183478762	0.310793108	0.166318475	0.110349363	0.084638628	0.042832604	0.101589061	9095875.586
+3	0.259968351	0.3402361	0.154514443	0.095379042	0.054922866	0.028236214	0.066742984	6351806.032
+4	0.355011808	0.311682757	0.122950089	0.085965687	0.052928825	0.020693799	0.050767036	4589885.444
+5	0.425424291	0.286548278	0.094624381	0.058442591	0.059337443	0.019062934	0.056560082	4054784.892
+6	0.491110848	0.2818201	0.0778967	0.047104419	0.042169229	0.017284361	0.042614342	3814493.531
+7	0.568166198	0.240176967	0.060429339	0.038872002	0.02462136	0.018103453	0.04963068	4132857.49
+8	0.643733921	0.212667908	0.0583017	0.018124218	0.019998131	0.012356629	0.034817493	2881585.617
+9	0.711091678	0.174195273	0.040818672	0.027899792	0.009535145	0.006972778	0.029486663	2809804.755
+10	0.786807097	0.13925746	0.020975931	0.00903874	0.016532002	0.004082755	0.023306015	2364844.705
+11	0.861404303	0.087369337	0.016711765	0.00821982	0.007782726	0.005211929	0.013300119	2593663.826
+12	0.926876395	0.043157833	0.008864844	0.004040934	0.00290371	0.001484156	0.012672128	3162597.112
+13	1	0	0	0	0	0	0	4693928.262
+", sep = "\t", header = TRUE) %>%
+  mutate(prop = N/sum(N)) %>%
+  group_by(sum_topdecile) %>%
+  gather(Quintile, y, -prop, -N, -sum_topdecile) %>%
+  mutate(Quintile = factor(Quintile, levels = rev(unique(.$Quintile)), ordered = TRUE)) %>%
+  group_by(Quintile) %>%
+  arrange(sum_topdecile) %>%
+  mutate(xmin = cumsum(lag(prop, default = 0)), 
+         xmax = cumsum(prop)) %>%
+  ungroup %>%
+  group_by(prop) %>%
+  arrange(desc(Quintile)) %>%
+  mutate(ymin = cumsum(lag(y, default = 0)), 
+         ymax = cumsum(y)) %>%
+  ungroup %>%
+  arrange(sum_topdecile, Quintile)
+
+marimekko_data %>%
+  grplot(aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax, fill = Quintile), reverse = TRUE) + 
+  geom_rect()
+@
+
+<<marimekko-explainer>>=
+marimekko_data %>%
+  grplot(aes(fill = fill), reverse = TRUE) + 
+  # geom_bar(aes(width = width), stat = "identity", position = "stack", colour = "black") + 
+  geom_rect(aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax), colour = theGrey, fill = NA) + 
+  scale_y_continuous(label = percent, expand = c(0,0), breaks = c(0.26, 0.6, 1))  + 
+  scale_x_continuous(label = function(x) percent(x), 
+                     breaks = c(0, 0.25, 1.00), 
+                     expand = c(0,0)) + 
+  annotate("rect", xmin = 0, xmax = 0.2486, ymin = 0, ymax = 1, fill = Orange, colour = "black") + 
+  annotate("text", 
+           x = 0.2486/2, 
+           y = 0.5, 
+           fontface = "bold", 
+           label = "25% of\npersons\nwho were\never in the\ntop decile\nwere there\nfor only\n1 year\n(out of 13)", 
+           size = 16/(14/5), 
+           family = "helvet") +
+  annotate("rect", 
+           xmin = mean(c(0.3838, 0.4782)) + 0.185, 
+           xmax = mean(c(0.3838, 0.4782)) + 0.485, 
+           ymin = 0.05, ymax = 0.415, 
+           fill = "white", alpha = 0.975) + 
+  annotate("rect", xmin = 0.3838, xmax = 0.4782, ymin = 0.259, ymax = 0.6, 
+           colour = "black",
+           fill = DarkOrange) + 
+  annotate("text", 
+           x = mean(c(0.3838, 0.4782)) + 0.2, 
+           y = mean(c(0.259, 0.6)) - 0.2,
+           hjust = 0,
+           vjust = 0.5,
+           label = paste("Of those who spent",
+                         "exactly 3 out of 13 years",
+                         "in the top decile,", 
+                         "each person on average",
+                         "spent 34% of those", 
+                         "13 years in the 9th decile", sep = "\n"),
+           family = "helvet", 
+           fontface = "bold", 
+           size = 16/(14/5)) + 
+  annotate("curve", 
+           x = mean(c(0.3838, 0.4782)) + 0.185, 
+           xend = mean(c(0.3838, 0.4782)), 
+           y = mean(c(0.259, 0.6)) - 0.2,
+           yend = mean(c(0.259, 0.6)), 
+           arrow = arrow(angle = 20, type = "closed"),
+           lineend = "mitre", 
+           curvature = -0.15) + 
+  #
+  
+  xlab("Percentage of those spending at least 1 year in top decile") + 
+  theme(plot.margin = margin(t = 11, r = 33, b = 5.5), 
+        axis.title.x = element_blank()) ->
+  marimekko_explainer_p 
+
+# marimekko_explainer_p
+# gt <- ggplot_gtable(ggplot_build(marimekko_explainer_p))$grobs[[4]]$children[[8]]  # curve
+grid.newpage()
+gt <- ggplot_gtable(ggplot_build(marimekko_explainer_p))
+gt$grobs[[4]]$children[[8]] <- editGrob(gt$grobs[[4]]$children[[8]], gp = gpar(fill = "black"))
+
+grid.draw(gt)
+@
+
+\section{CGT}
+
+<<CGT>>=
+knitr::opts_chunk$set(fig.path = "./Hot-property-CG-and-NG/CGT-NG-atlas/b5-atlas/")
+@
+
+<<load_sample_file>>=
+sample_file <- sample_files_all[fy.year == '2013-14']
+@
+
+<<create-age-imp>>=
+sample_file <- merge(sample_file, age_range_decoder, by = "age_range")
+
+set.seed(48031)
+sample_file %<>%
+  group_by(age_range_description) %>%
+  mutate(min_age = ifelse(grepl("to", age_range_description), 
+                          as.numeric(stringr::str_extract(age_range_description, "^[0-9]{2}")), 
+                          ifelse(grepl("70", age_range_description),
+                                 70, 
+                                 15)),
+         max_age = min_age + 5, 
+         age_imp = runif(n(), min_age, max_age)) 
+@
+
+<<CGT-Figure1>>=
+read.table(text="Source	Shares $bn	Real estate $bn	Other assets $bn
+Individuals	9	13	11
+Companies	6	4	11
+Funds	13	1	12
+", sep = "\t", header = TRUE, check.names = FALSE) %>%
+  mutate(x = factor(Source, levels = unique(.$Source),
+                    ordered = TRUE)) %>%
+  select(-Source) %>%
+  gather(fill, y, -x) %>%
+  mutate(fill = factor(fill, levels = unique(.$fill)[c(1,3,2)], labels = gsub("\\s.bn$", "", unique(.$fill)), 
+                       ordered = TRUE)) %>%
+  stacked_bar_with_right_labels3(barwidth = 0.8, right_margin = 8.53, 
+                                 scale_y_args = list(labels = grattan_dollar, 
+                                                     expand = c(0,0), 
+                                                     limits = c(0, 35)),
+                                 nudge_right = 0.1,
+                                 theme.args = list(axis.title.x = element_blank()))
+@
+
+<<CGT-by-age-income>>=
+sample_file %>%
+  mutate(
+         `Taxable income percentile` = ntile(Taxable_Income, 100)) %>%
+  group_by(
+    `Taxable income percentile`,
+    `Age group` = cut(age_imp, 
+                      breaks = c(-Inf, 30, 50, 65, Inf),
+                      labels = c("Below\n30", "30-49", "50-64", "65+"), 
+                      include.lowest = TRUE, 
+                      right = FALSE, ## almost not needed
+                      ordered.results = TRUE)
+    ) %>%
+  summarise(probCG = mean(Net_CG_amt > 0), 
+            n_taxpayers = 50 * n()) %>%
+  ungroup %>%
+  group_by(`Age group`) %>%
+  mutate(
+    text.label = ifelse(`Taxable income percentile` == max(`Taxable income percentile`),
+                        as.character(`Age group`), 
+                        NA_character_),
+    # choice of 96 cosmetic (puts labels in a reasonable place semantically and aesthetically)
+    text.y = mean(probCG[`Taxable income percentile` > 96]) + ifelse(`Age group` == "Below\n30", 
+                                                                     -0.05, 0)
+         ) %>%
+         {
+           grplot(., aes(x = `Taxable income percentile`, y = probCG, 
+                         color = rev(`Age group`), weight = n_taxpayers)) + 
+             theme(axis.title.y = element_blank(),
+                   axis.title.x = element_text(hjust = 0.5, face = "bold")) + 
+             # gridlines go to far
+             theme(panel.grid.major.y = element_blank()) + 
+             annotate("segment",
+                      x = -Inf, 
+                      xend = 100, 
+                      color = theGrey,
+                      y = seq(0, 0.20, by = 0.10), 
+                      yend = seq(0, 0.20, by = 0.10), 
+                      size = rel(0.5)) + 
+             geom_smooth(size = 1.5, se = FALSE) + 
+             # Mark Below\n30 as grey
+             scale_color_manual(values = c(gpal(3), theGrey)) + 
+             geom_text(aes(label = text.label, y = text.y), 
+                       hjust = 0, 
+                       size = 23/(14/5),
+                       lineheight = 1,
+                       family = "helvet",
+                       nudge_x = 2,
+                       fontface = "bold", 
+                       # ignore warnings (NAs intentional)
+                       na.rm = TRUE) + 
+             scale_y_continuous(label = function(x) paste0("", percent(x)), expand = c(0,0)) +
+             scale_x_continuous(breaks = c(0, 25, 50, 75, 100), expand = c(0,0)) +
+             coord_cartesian(xlim = c(-3, 115)) + 
+             theme(axis.line.x = element_blank(), axis.line.y = element_line(size = 0.5)) + 
+             annotate("segment", x = 0, xend = 100, y = 0, yend = 0, size = 1, colour = "black")
+         } 
+@
+
+\section{cgt}
+<<cgt>>=
+knitr::opts_chunk$set(fig.path = "./Hot-property-CG-and-NG/CGT-NG-atlas/b5-atlas/")
+@
+
+<<CGT-fig16>>=
+data_fig_16 <- 
+  read.table(text="Gearing ratio 	Current EMTRs	25% CGT discount, quarantining NG
+Equity financed           (No gearing)	40.6%	48.8%
+Borrowing 40% investment value (Positive gearing)	29.3%	37.2%
+Borrowing 80% of investment value (Negative gearing)	18.8%	26.8%
+", sep = "\t", header = TRUE, check.names = FALSE, as.is = TRUE) %>%
+  gather(fill, y, -`Gearing ratio`) %>%
+  mutate(y = as.numeric(gsub("%", "", as.character(y))) / 100, 
+         fill = gsub("EMTRS", "", fill, ignore.case = TRUE))
+
+data_fig_16 %>%
+  mutate(`Gearing ratio` = factor(`Gearing ratio`, levels = unique(.$`Gearing ratio`), 
+                                  labels = c("Equity financed\n(No gearing)", 
+                                             "Borrowing 40%\ninvestment value\n(Positive gearing)", 
+                                             "Borrowing 80% of\n investment value\n (Negative gearing)"), 
+                                  ordered = TRUE)) %>%
+  grplot(aes(x = `Gearing ratio`, y, fill = fill), reverse = TRUE) + 
+  geom_bar(stat = "identity", width = 0.7, position = "dodge") + 
+  scale_y_continuous(label = percent, expand = c(0,0), limits = c(0, 0.61)) + 
+  theme(legend.position = c(1, 1), 
+        legend.background = element_blank(),
+        legend.justification = c(1,1),
+        legend.margin = unit(0, "lines"),
+        legend.title = element_blank()) + 
+  theme(axis.title.x = element_blank()) + 
+  geom_hline(yintercept = 0.47, linetype = "dashed") + 
+  annotate("text", 
+           x = Inf, 
+           hjust = 1,
+           family = "helvet",
+           y = 0.465, 
+           size = 23/(14/5),
+           vjust = 1, 
+           label = "Nominal tax rate") 
+@
+
+
+
+\end{document}

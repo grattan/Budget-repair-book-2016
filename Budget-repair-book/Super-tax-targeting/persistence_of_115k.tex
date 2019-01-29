@@ -1,0 +1,645 @@
+\documentclass{grattanAlpha}\usepackage[]{graphicx}\usepackage[]{color}
+%% maxwidth is the original width if it is less than linewidth
+%% otherwise use linewidth (to make sure the graphics do not exceed the margin)
+\makeatletter
+\def\maxwidth{ %
+  \ifdim\Gin@nat@width>\linewidth
+    \linewidth
+  \else
+    \Gin@nat@width
+  \fi
+}
+\makeatother
+
+\definecolor{fgcolor}{rgb}{0.345, 0.345, 0.345}
+\newcommand{\hlnum}[1]{\textcolor[rgb]{0.686,0.059,0.569}{#1}}%
+\newcommand{\hlstr}[1]{\textcolor[rgb]{0.192,0.494,0.8}{#1}}%
+\newcommand{\hlcom}[1]{\textcolor[rgb]{0.678,0.584,0.686}{\textit{#1}}}%
+\newcommand{\hlopt}[1]{\textcolor[rgb]{0,0,0}{#1}}%
+\newcommand{\hlstd}[1]{\textcolor[rgb]{0.345,0.345,0.345}{#1}}%
+\newcommand{\hlkwa}[1]{\textcolor[rgb]{0.161,0.373,0.58}{\textbf{#1}}}%
+\newcommand{\hlkwb}[1]{\textcolor[rgb]{0.69,0.353,0.396}{#1}}%
+\newcommand{\hlkwc}[1]{\textcolor[rgb]{0.333,0.667,0.333}{#1}}%
+\newcommand{\hlkwd}[1]{\textcolor[rgb]{0.737,0.353,0.396}{\textbf{#1}}}%
+\let\hlipl\hlkwb
+
+\usepackage{framed}
+\makeatletter
+\newenvironment{kframe}{%
+ \def\at@end@of@kframe{}%
+ \ifinner\ifhmode%
+  \def\at@end@of@kframe{\end{minipage}}%
+  \begin{minipage}{\columnwidth}%
+ \fi\fi%
+ \def\FrameCommand##1{\hskip\@totalleftmargin \hskip-\fboxsep
+ \colorbox{shadecolor}{##1}\hskip-\fboxsep
+     % There is no \\@totalrightmargin, so:
+     \hskip-\linewidth \hskip-\@totalleftmargin \hskip\columnwidth}%
+ \MakeFramed {\advance\hsize-\width
+   \@totalleftmargin\z@ \linewidth\hsize
+   \@setminipage}}%
+ {\par\unskip\endMakeFramed%
+ \at@end@of@kframe}
+\makeatother
+
+\definecolor{shadecolor}{rgb}{.97, .97, .97}
+\definecolor{messagecolor}{rgb}{0, 0, 0}
+\definecolor{warningcolor}{rgb}{1, 0, 1}
+\definecolor{errorcolor}{rgb}{1, 0, 0}
+\newenvironment{knitrout}{}{} % an empty environment to be redefined in TeX
+
+\usepackage{alltt}
+
+\title{Persistence of incomes}
+\author{HP}
+
+\addbibresource{bibliography.bib}
+\IfFileExists{upquote.sty}{\usepackage{upquote}}{}
+\begin{document}
+\contentspage
+
+
+
+
+\begin{knitrout}
+\definecolor{shadecolor}{rgb}{0.969, 0.969, 0.969}\color{fgcolor}\begin{kframe}
+\begin{alltt}
+\hlkwd{library}\hlstd{(foreign)}
+\hlkwd{library}\hlstd{(ggplot2)}
+\hlkwd{library}\hlstd{(scales)}
+\hlkwd{library}\hlstd{(grattan)}
+\hlkwd{library}\hlstd{(data.table)}
+\hlkwd{library}\hlstd{(tidyr)}
+\hlkwd{library}\hlstd{(dplyr)}
+\hlkwd{library}\hlstd{(magrittr)}
+
+\hlstd{weighted.var.se} \hlkwb{<-} \hlkwa{function}\hlstd{(}\hlkwc{x}\hlstd{,} \hlkwc{w}\hlstd{,} \hlkwc{na.rm}\hlstd{=}\hlnum{FALSE}\hlstd{)\{}
+  \hlcom{# Computes the variance of a weighted mean following Cochran 1977 definition}
+  \hlcom{# http://stats.stackexchange.com/questions/25895/computing-standard-error-in-weighted-mean-estimation}
+  \hlkwa{if} \hlstd{(na.rm) \{ w} \hlkwb{<-} \hlstd{w[i} \hlkwb{<-} \hlopt{!}\hlkwd{is.na}\hlstd{(x)]; x} \hlkwb{<-} \hlstd{x[i] \}}
+  \hlstd{n} \hlkwb{=} \hlkwd{length}\hlstd{(w)}
+  \hlstd{xWbar} \hlkwb{=} \hlkwd{weighted.mean}\hlstd{(x,w,}\hlkwc{na.rm}\hlstd{=na.rm)}
+  \hlstd{wbar} \hlkwb{=} \hlkwd{mean}\hlstd{(w)}
+  \hlstd{out} \hlkwb{=} \hlstd{n}\hlopt{/}\hlstd{((n}\hlopt{-}\hlnum{1}\hlstd{)}\hlopt{*}\hlkwd{sum}\hlstd{(w)}\hlopt{^}\hlnum{2}\hlstd{)}\hlopt{*}\hlstd{(}\hlkwd{sum}\hlstd{((w}\hlopt{*}\hlstd{x}\hlopt{-}\hlstd{wbar}\hlopt{*}\hlstd{xWbar)}\hlopt{^}\hlnum{2}\hlstd{)}\hlopt{-}\hlnum{2}\hlopt{*}\hlstd{xWbar}\hlopt{*}\hlkwd{sum}\hlstd{((w}\hlopt{-}\hlstd{wbar)}\hlopt{*}\hlstd{(w}\hlopt{*}\hlstd{x}\hlopt{-}\hlstd{wbar}\hlopt{*}\hlstd{xWbar))}\hlopt{+}\hlstd{xWbar}\hlopt{^}\hlnum{2}\hlopt{*}\hlkwd{sum}\hlstd{((w}\hlopt{-}\hlstd{wbar)}\hlopt{^}\hlnum{2}\hlstd{))}
+  \hlkwd{return}\hlstd{(out)}
+\hlstd{\}}
+\end{alltt}
+\end{kframe}
+\end{knitrout}
+
+
+
+\begin{knitrout}
+\definecolor{shadecolor}{rgb}{0.969, 0.969, 0.969}\color{fgcolor}\begin{kframe}
+\begin{alltt}
+\hlstd{read_hilda_strip_first_letter_add_column_id} \hlkwb{<-}
+  \hlkwa{function}\hlstd{(}\hlkwc{filename}\hlstd{)\{}
+    \hlstd{temp} \hlkwb{<-} \hlkwd{fread}\hlstd{(filename)}
+    \hlstd{nms} \hlkwb{<-} \hlkwd{names}\hlstd{(temp)}
+    \hlcom{# detect the prefix if it is the wave id.}
+    \hlstd{nms.prefixes} \hlkwb{<-} \hlkwd{unique}\hlstd{(}\hlkwd{gsub}\hlstd{(}\hlstr{"^(.).*$"}\hlstd{,} \hlstr{"\textbackslash{}\textbackslash{}1"}\hlstd{, nms))}
+    \hlstd{yearid} \hlkwb{<-} \hlstd{nms.prefixes[nms.prefixes} \hlopt{%in%} \hlstd{letters[}\hlnum{1}\hlopt{:}\hlnum{14}\hlstd{]]}
+    \hlcom{# we're interested in stripping the names that specify the wave id (a-m)}
+    \hlkwd{setnames}\hlstd{(temp,} \hlkwc{old} \hlstd{= nms,} \hlkwc{new} \hlstd{=} \hlkwd{gsub}\hlstd{(}\hlstr{"^[a-n]"}\hlstd{,} \hlstr{""}\hlstd{, nms))}
+
+    \hlstd{make_negative_NA} \hlkwb{<-} \hlkwa{function}\hlstd{(}\hlkwc{x}\hlstd{)\{}
+      \hlkwa{if} \hlstd{(}\hlkwd{is.numeric}\hlstd{(x))\{}
+        \hlstd{x[x} \hlopt{<} \hlnum{0}\hlstd{]} \hlkwb{<-} \hlnum{NA}
+      \hlstd{\}}
+
+      \hlstd{x}
+    \hlstd{\}}
+
+    \hlstd{wave.decoder} \hlkwb{<-}
+      \hlkwd{data.table}\hlstd{(}
+        \hlkwc{wave} \hlstd{= letters[}\hlnum{1}\hlopt{:}\hlnum{14}\hlstd{],}
+        \hlkwc{Year} \hlstd{=} \hlnum{2000} \hlopt{+} \hlnum{1}\hlopt{:}\hlnum{14}
+      \hlstd{)} \hlopt{%>%}
+      \hlkwd{setkey}\hlstd{(wave)}
+
+    \hlstd{temp} \hlkwb{<-}
+      \hlstd{temp} \hlopt{%>%}
+      \hlkwd{mutate_each}\hlstd{(}\hlkwd{funs}\hlstd{(make_negative_NA))} \hlopt{%>%}
+      \hlkwd{mutate}\hlstd{(}\hlkwc{wave} \hlstd{= yearid)} \hlopt{%>%}
+      \hlstd{as.data.table} \hlopt{%>%}
+      \hlkwd{setkey}\hlstd{(wave)} \hlopt{%>%}
+      \hlkwd{merge}\hlstd{(wave.decoder)} \hlopt{%>%}
+      \hlkwd{mutate}\hlstd{(}\hlkwc{income} \hlstd{= tifefp)} \hlopt{%>%}
+      \hlstd{as.data.table}
+
+    \hlstd{tmp.svy.quantiles} \hlkwb{<-}
+      \hlstd{survey}\hlopt{::}\hlkwd{svydesign}\hlstd{(}\hlkwc{ids} \hlstd{=} \hlopt{~}\hlstd{xwaveid,} \hlkwc{strata} \hlstd{=} \hlopt{~}\hlstd{xhhstrat,} \hlkwc{weights} \hlstd{=} \hlopt{~}\hlstd{hhwte,}
+                        \hlkwc{data} \hlstd{= temp)} \hlopt{%>%}
+      \hlstd{survey}\hlopt{::}\hlkwd{svyquantile}\hlstd{(}\hlkwc{x} \hlstd{=} \hlopt{~}\hlstd{income,} \hlkwc{design} \hlstd{= .,} \hlkwc{quantiles} \hlstd{= (}\hlnum{0}\hlopt{:}\hlnum{10}\hlstd{)}\hlopt{/}\hlnum{10}\hlstd{)}
+
+    \hlstd{quantile.index} \hlkwb{<-} \hlkwd{c}\hlstd{(}\hlnum{1}\hlstd{,}\hlnum{4}\hlopt{:}\hlnum{11}\hlstd{)}
+
+    \hlstd{temp} \hlopt{%<>%} \hlkwd{mutate}\hlstd{(}\hlkwc{tot_inc_percentile_contemporaneous} \hlstd{=}
+                       \hlkwd{as.numeric}\hlstd{(}\hlkwd{factor}\hlstd{(}\hlkwd{cut}\hlstd{(income,}
+                                             \hlcom{# deciles.  So choose the first (the min,}
+                                             \hlcom{# the eighth, the ninth, and the tenth). }
+                                             \hlcom{# This corresponds to the bottom, the }
+                                             \hlcom{# 80-90th percentiles and the 90-100 perc-}
+                                             \hlcom{# entiles.}
+                                             \hlkwc{breaks} \hlstd{= tmp.svy.quantiles[quantile.index],}
+                                             \hlkwc{include.lowest} \hlstd{=} \hlnum{TRUE}\hlstd{))),}
+                     \hlkwc{tot_inc_percentile_contemporaneous} \hlstd{=} \hlkwd{ifelse}\hlstd{(tot_inc_percentile_contemporaneous} \hlopt{==} \hlnum{1}\hlstd{,}
+                                                                 \hlnum{1}\hlstd{,}
+                                                                 \hlstd{tot_inc_percentile_contemporaneous} \hlopt{+} \hlnum{11} \hlopt{-} \hlkwd{length}\hlstd{(quantile.index)),}
+                     \hlkwc{top_decile} \hlstd{= tot_inc_percentile_contemporaneous} \hlopt{==} \hlkwd{max}\hlstd{(tot_inc_percentile_contemporaneous),}
+                     \hlkwc{second_dec} \hlstd{= tot_inc_percentile_contemporaneous} \hlopt{==} \hlkwd{max}\hlstd{(tot_inc_percentile_contemporaneous)} \hlopt{-} \hlnum{1}\hlstd{,}
+                     \hlkwc{third_decile} \hlstd{= tot_inc_percentile_contemporaneous} \hlopt{==} \hlkwd{max}\hlstd{(tot_inc_percentile_contemporaneous)} \hlopt{-} \hlnum{2}\hlstd{,}
+                     \hlkwc{fourth_decile} \hlstd{= tot_inc_percentile_contemporaneous} \hlopt{==} \hlkwd{max}\hlstd{(tot_inc_percentile_contemporaneous)} \hlopt{-} \hlnum{3}\hlstd{,}
+                     \hlkwc{fifth_decile} \hlstd{= tot_inc_percentile_contemporaneous} \hlopt{==} \hlkwd{max}\hlstd{(tot_inc_percentile_contemporaneous)} \hlopt{-} \hlnum{4}\hlstd{,}
+                     \hlkwc{sixth_decile} \hlstd{= tot_inc_percentile_contemporaneous} \hlopt{==} \hlkwd{max}\hlstd{(tot_inc_percentile_contemporaneous)} \hlopt{-} \hlnum{5}\hlstd{,}
+                     \hlkwc{bottom_deciles} \hlstd{= tot_inc_percentile_contemporaneous} \hlopt{<} \hlkwd{max}\hlstd{(tot_inc_percentile_contemporaneous)} \hlopt{-} \hlnum{5}\hlstd{,}
+                     \hlkwc{top_quintile} \hlstd{= top_decile} \hlopt{|} \hlstd{second_dec)} \hlopt{%>%}
+      \hlstd{as.data.table}
+
+
+    \hlkwd{return}\hlstd{(temp)}
+  \hlstd{\}}
+
+\hlstd{hilda_list} \hlkwb{<-}
+  \hlkwd{lapply}\hlstd{(}\hlkwd{list.files}\hlstd{(}\hlkwc{path} \hlstd{=} \hlstr{"../../../Data/HILDA/Wave14/"}\hlstd{,} \hlkwc{full.names} \hlstd{=} \hlnum{TRUE}\hlstd{,}
+                    \hlkwc{pattern} \hlstd{=} \hlstr{"^E.*csv$"}\hlstd{),}  \hlcom{# enumerated person}
+         \hlstd{read_hilda_strip_first_letter_add_column_id)}
+\end{alltt}
+\end{kframe}
+\end{knitrout}
+
+\begin{knitrout}
+\definecolor{shadecolor}{rgb}{0.969, 0.969, 0.969}\color{fgcolor}\begin{kframe}
+\begin{alltt}
+\hlstd{all_hilda} \hlkwb{<-} \hlkwd{rbindlist}\hlstd{(hilda_list,} \hlkwc{fill} \hlstd{=} \hlnum{TRUE}\hlstd{)}
+
+\hlstd{prop_stay_by_id} \hlkwb{<-}
+  \hlstd{all_hilda} \hlopt{%>%}
+  \hlkwd{select}\hlstd{(}
+    \hlstd{xwaveid}
+    \hlstd{,wave}
+    \hlstd{,lnwte}
+    \hlstd{,hhwte}
+    \hlstd{,tifefp}
+    \hlstd{,tifefn}
+    \hlstd{,top_decile}
+    \hlstd{,top_quintile}
+  \hlstd{)} \hlopt{%>%}
+  \hlkwd{filter}\hlstd{(lnwte} \hlopt{!=} \hlnum{0}\hlstd{)} \hlopt{%>%}
+  \hlstd{tbl_df} \hlopt{%>%}
+  \hlkwd{group_by}\hlstd{(xwaveid)} \hlopt{%>%}
+  \hlkwd{filter}\hlstd{(}\hlkwd{any}\hlstd{(top_decile))} \hlopt{%>%}
+  \hlkwd{arrange}\hlstd{(wave)} \hlopt{%>%}
+  \hlkwd{mutate}\hlstd{(}\hlkwc{cum_topdecile} \hlstd{=} \hlkwd{cumsum}\hlstd{(top_decile))} \hlopt{%>%}
+  \hlkwd{group_by}\hlstd{(xwaveid)} \hlopt{%>%}
+  \hlkwd{mutate}\hlstd{(}\hlkwc{first_enters_decile} \hlstd{=} \hlkwd{lag}\hlstd{(cum_topdecile)} \hlopt{==} \hlnum{0} \hlopt{&} \hlstd{top_decile,}
+         \hlkwc{first_enters_decile_at} \hlstd{=} \hlkwd{as.character}\hlstd{(}\hlkwd{ifelse}\hlstd{(first_enters_decile, wave,} \hlnum{NA_character_}\hlstd{)),}
+         \hlkwc{has_entered_top_decile} \hlstd{=} \hlkwd{as.logical}\hlstd{(}\hlkwd{cumsum}\hlstd{(top_decile)),}
+         \hlkwc{top_quintile_after_top_decile} \hlstd{= top_decile} \hlopt{|} \hlstd{(}\hlkwd{as.logical}\hlstd{(}\hlkwd{cumsum}\hlstd{(top_decile))} \hlopt{&} \hlstd{top_quintile),}
+         \hlkwc{leaves_decile} \hlstd{= top_decile} \hlopt{>} \hlkwd{lead}\hlstd{(top_decile),}
+         \hlkwc{leaves_quintile} \hlstd{= top_quintile} \hlopt{>} \hlkwd{lead}\hlstd{(top_quintile))} \hlopt{%>%}  \hlcom{#only TRUE followed by false}
+  \hlkwd{group_by}\hlstd{(xwaveid)} \hlopt{%>%}
+  \hlkwd{summarise}\hlstd{(}\hlkwc{potential_time_in_top_decile} \hlstd{=} \hlkwd{sum}\hlstd{(has_entered_top_decile),}
+            \hlkwc{years_in_sample} \hlstd{=} \hlkwd{n}\hlstd{(),}
+            \hlkwc{time_in_top_decile} \hlstd{=} \hlkwd{sum}\hlstd{(top_decile),}
+            \hlkwc{time_in_top_quintile} \hlstd{=} \hlkwd{sum}\hlstd{(top_quintile_after_top_decile),}
+            \hlkwc{last_lnwte} \hlstd{=} \hlkwd{last}\hlstd{(lnwte))}
+\end{alltt}
+
+
+{\ttfamily\noindent\bfseries\color{errorcolor}{\#\# Error in .f(.x[[i]], ...): object 'xwaveid' not found}}\begin{alltt}
+\hlcom{# Note that quite a lot have na valued weights  - }
+\hlstd{prop_stay_by_id.narm} \hlkwb{<-}
+  \hlstd{prop_stay_by_id} \hlopt{%>%}
+  \hlkwd{filter}\hlstd{(}\hlkwd{complete.cases}\hlstd{(.))}
+\end{alltt}
+
+
+{\ttfamily\noindent\bfseries\color{errorcolor}{\#\# Error in eval(lhs, parent, parent): object 'prop\_stay\_by\_id' not found}}\begin{alltt}
+\hlkwd{weighted.mean}\hlstd{(prop_stay_by_id.narm}\hlopt{$}\hlstd{time_in_top_quintile}\hlopt{/}\hlnum{12}\hlstd{,}\hlcom{# / prop_stay_by_id.narm$potential_time_in_top_decile, }
+              \hlstd{prop_stay_by_id.narm}\hlopt{$}\hlstd{last_lnwte)}
+\end{alltt}
+
+
+{\ttfamily\noindent\bfseries\color{errorcolor}{\#\# Error in weighted.mean(prop\_stay\_by\_id.narm\$time\_in\_top\_quintile/12, prop\_stay\_by\_id.narm\$last\_lnwte): object 'prop\_stay\_by\_id.narm' not found}}\end{kframe}
+\end{knitrout}
+
+\begin{knitrout}
+\definecolor{shadecolor}{rgb}{0.969, 0.969, 0.969}\color{fgcolor}\begin{kframe}
+\begin{alltt}
+\hlstd{all_hilda} \hlopt{%>%}
+  \hlstd{dplyr}\hlopt{::}\hlkwd{select}\hlstd{(}
+    \hlstd{xwaveid}
+    \hlstd{,wave}
+    \hlstd{,Year}
+    \hlstd{,lnwte}
+    \hlstd{,hhwte}
+    \hlstd{,tifefp}
+    \hlstd{,tifefn}
+    \hlstd{,income}
+    \hlstd{,top_decile}
+    \hlstd{,top_quintile}
+  \hlstd{)} \hlopt{%>%}
+  \hlkwd{filter}\hlstd{(lnwte} \hlopt{!=} \hlnum{0}\hlstd{)} \hlopt{%>%}
+  \hlkwd{group_by}\hlstd{(xwaveid)} \hlopt{%>%}
+  \hlkwd{arrange}\hlstd{(wave)} \hlopt{%>%}
+  \hlkwd{mutate}\hlstd{(}\hlkwc{cum_topdecile} \hlstd{=} \hlkwd{cumsum}\hlstd{(top_decile))} \hlopt{%>%}
+  \hlkwd{group_by}\hlstd{(xwaveid)} \hlopt{%>%}
+  \hlkwd{mutate}\hlstd{(}\hlkwc{first_enters_decile} \hlstd{=} \hlkwd{lag}\hlstd{(cum_topdecile)} \hlopt{==} \hlnum{0} \hlopt{&} \hlstd{top_decile,}
+         \hlkwc{first_enters_decile_at} \hlstd{=} \hlkwd{as.character}\hlstd{(}\hlkwd{ifelse}\hlstd{(first_enters_decile, wave,} \hlnum{NA_character_}\hlstd{)),}
+         \hlkwc{has_entered_top_decile} \hlstd{=} \hlkwd{as.logical}\hlstd{(}\hlkwd{cumsum}\hlstd{(top_decile)),}
+         \hlkwc{top_quintile_after_top_decile} \hlstd{= top_decile} \hlopt{|} \hlstd{(}\hlkwd{as.logical}\hlstd{(}\hlkwd{cumsum}\hlstd{(top_decile))} \hlopt{&} \hlstd{top_quintile),}
+         \hlkwc{leaves_decile} \hlstd{= top_decile} \hlopt{>} \hlkwd{lead}\hlstd{(top_decile),}
+         \hlkwc{leaves_quintile} \hlstd{= top_quintile} \hlopt{>} \hlkwd{lead}\hlstd{(top_quintile),}
+         \hlkwc{top_deciler} \hlstd{=} \hlkwd{as.logical}\hlstd{(}\hlkwd{max}\hlstd{(top_decile)),}
+         \hlkwc{not_top_deciler_but_top_quintile} \hlstd{=} \hlopt{!}\hlstd{top_deciler} \hlopt{&} \hlkwd{max}\hlstd{(top_quintile),}
+         \hlkwc{last_lnwte} \hlstd{=} \hlkwd{last}\hlstd{(lnwte))} \hlopt{%>%}
+  \hlkwd{mutate}\hlstd{(}\hlkwc{real_income} \hlstd{=} \hlkwd{cpi_inflator}\hlstd{(income,} \hlkwc{from_fy} \hlstd{=} \hlkwd{yr2fy}\hlstd{(Year),} \hlkwc{to_fy} \hlstd{=} \hlstr{"2013-14"}\hlstd{))} \hlopt{%>%}
+  \hlkwd{group_by}\hlstd{(top_deciler, not_top_deciler_but_top_quintile)} \hlopt{%>%}
+  \hlkwd{summarise}\hlstd{(}\hlkwc{mean.income} \hlstd{=} \hlkwd{weighted.mean}\hlstd{(real_income, last_lnwte),}
+            \hlkwd{sum}\hlstd{(top_decile),}
+            \hlkwc{sd.income} \hlstd{=} \hlkwd{weighted.var.se}\hlstd{(real_income, last_lnwte))}
+\end{alltt}
+
+
+{\ttfamily\noindent\bfseries\color{errorcolor}{\#\# Error in .f(.x[[i]], ...): object 'xwaveid' not found}}\end{kframe}
+\end{knitrout}
+
+\begin{knitrout}
+\definecolor{shadecolor}{rgb}{0.969, 0.969, 0.969}\color{fgcolor}\begin{kframe}
+\begin{alltt}
+\hlstd{all_hilda} \hlopt{%>%}
+  \hlkwd{filter}\hlstd{(lnwte} \hlopt{!=} \hlnum{0} \hlopt{|} \hlkwd{is.na}\hlstd{(lnwte))} \hlopt{%>%}
+  \hlkwd{group_by}\hlstd{(xwaveid)} \hlopt{%>%}
+  \hlkwd{mutate}\hlstd{(}\hlkwc{ever_in_top_decile} \hlstd{=} \hlkwd{sum}\hlstd{(top_decile)} \hlopt{>} \hlnum{0}\hlstd{)} \hlopt{%>%}
+  \hlstd{ungroup} \hlopt{%>%}
+  \hlkwd{filter}\hlstd{(ever_in_top_decile)} \hlopt{%>%}
+  \hlkwd{group_by}\hlstd{(xwaveid)} \hlopt{%>%}
+  \hlkwd{summarise}\hlstd{(}\hlkwc{years_in_top_decile} \hlstd{=} \hlkwd{sum}\hlstd{(top_decile),}
+            \hlkwc{years_in_top_quinti} \hlstd{=} \hlkwd{sum}\hlstd{(top_quintile),}
+            \hlkwc{years_in_sample} \hlstd{=} \hlkwd{n}\hlstd{(),}
+            \hlkwc{last_lnwte} \hlstd{=} \hlkwd{last}\hlstd{(lnwte),}
+            \hlkwc{last_age} \hlstd{=} \hlkwd{last}\hlstd{(hgage))} \hlopt{%>%}
+  \hlstd{ungroup} \hlopt{%>%}
+  \hlkwd{filter}\hlstd{(}\hlopt{!}\hlkwd{is.na}\hlstd{(last_lnwte))} \hlopt{%>%}
+
+  \hlkwd{summarise}\hlstd{(}\hlkwc{prop_time_top_quintile} \hlstd{=} \hlkwd{weighted.mean}\hlstd{(years_in_top_decile} \hlopt{/} \hlstd{years_in_sample,}
+                                                   \hlstd{last_lnwte))}
+\end{alltt}
+
+
+{\ttfamily\noindent\bfseries\color{errorcolor}{\#\# Error in grouped\_df\_impl(data, unname(vars), drop): Column `xwaveid` is unknown}}\end{kframe}
+\end{knitrout}
+
+\begin{knitrout}
+\definecolor{shadecolor}{rgb}{0.969, 0.969, 0.969}\color{fgcolor}\begin{kframe}
+\begin{alltt}
+\hlstd{all_hilda} \hlopt{%>%}
+  \hlkwd{group_by}\hlstd{(xwaveid)} \hlopt{%>%}
+  \hlkwd{filter}\hlstd{(}\hlkwd{sum}\hlstd{(top_decile)} \hlopt{>} \hlnum{0}\hlstd{)} \hlopt{%>%}
+  \hlkwd{filter}\hlstd{(lnwte} \hlopt{!=} \hlnum{0}\hlstd{)} \hlopt{%>%}
+  \hlcom{#mutate(inc_quantile = paste0("Q", tot_inc_percentile_contemporaneous)) %>% }
+  \hlstd{as.data.table} \hlopt{%>%}
+  \hlkwd{setkey}\hlstd{(tot_inc_percentile_contemporaneous)} \hlopt{%>%}
+  \hlkwd{merge}\hlstd{(}\hlkwd{data.table}\hlstd{(}\hlkwc{tot_inc_percentile_contemporaneous} \hlstd{=} \hlnum{1}\hlopt{:}\hlnum{10}\hlstd{),} \hlkwc{all.y} \hlstd{=} \hlnum{TRUE}\hlstd{)} \hlopt{%>%}
+  \hlkwd{ggplot}\hlstd{(}\hlkwd{aes}\hlstd{(}\hlkwc{x} \hlstd{=} \hlkwd{factor}\hlstd{(tot_inc_percentile_contemporaneous)))} \hlopt{+}
+  \hlkwd{geom_bar}\hlstd{(}\hlkwd{aes}\hlstd{(}\hlkwc{y} \hlstd{= ..count..}\hlopt{/}\hlkwd{sum}\hlstd{(..count..)))}
+\end{alltt}
+
+
+{\ttfamily\noindent\bfseries\color{errorcolor}{\#\# Error in grouped\_df\_impl(data, unname(vars), drop): Column `xwaveid` is unknown}}\end{kframe}
+\end{knitrout}
+
+\begin{knitrout}
+\definecolor{shadecolor}{rgb}{0.969, 0.969, 0.969}\color{fgcolor}\begin{kframe}
+\begin{alltt}
+\hlstd{all_hilda} \hlopt{%>%}
+  \hlkwd{group_by}\hlstd{(xwaveid)} \hlopt{%>%}
+  \hlkwd{filter}\hlstd{(}\hlkwd{max}\hlstd{(hgage)} \hlopt{<=} \hlnum{60}\hlstd{,}
+         \hlkwd{min}\hlstd{(hgage)} \hlopt{>=} \hlnum{30}\hlstd{)} \hlopt{%>%}
+
+  \hlcom{# Exclude xwaveids who never have top_decile}
+  \hlkwd{filter}\hlstd{(}\hlkwd{sum}\hlstd{(top_decile)} \hlopt{>} \hlnum{0}\hlstd{)} \hlopt{%>%}
+  \hlkwd{filter}\hlstd{(lnwte} \hlopt{!=} \hlnum{0}\hlstd{)} \hlopt{%>%}
+  \hlstd{as.data.table} \hlopt{%>%}
+
+  \hlcom{# Forces 2:3 to be present in the chart:}
+  \hlkwd{setkey}\hlstd{(tot_inc_percentile_contemporaneous)} \hlopt{%>%}
+  \hlkwd{merge}\hlstd{(}\hlkwd{data.table}\hlstd{(}\hlkwc{tot_inc_percentile_contemporaneous} \hlstd{=} \hlnum{1}\hlopt{:}\hlnum{10}\hlstd{),} \hlkwc{all.y} \hlstd{=} \hlnum{TRUE}\hlstd{)} \hlopt{%>%}
+
+  \hlkwd{grplot}\hlstd{(}\hlkwd{aes}\hlstd{(}\hlkwc{x} \hlstd{=} \hlkwd{factor}\hlstd{(tot_inc_percentile_contemporaneous)))} \hlopt{+}
+  \hlkwd{geom_bar}\hlstd{(}\hlkwd{aes}\hlstd{(}\hlkwc{y} \hlstd{= ..count..}\hlopt{/}\hlkwd{sum}\hlstd{(..count..),}
+               \hlkwc{weight} \hlstd{= lnwte))}
+\end{alltt}
+
+
+{\ttfamily\noindent\bfseries\color{errorcolor}{\#\# Error in grouped\_df\_impl(data, unname(vars), drop): Column `xwaveid` is unknown}}\end{kframe}
+\end{knitrout}
+
+\begin{knitrout}
+\definecolor{shadecolor}{rgb}{0.969, 0.969, 0.969}\color{fgcolor}\begin{kframe}
+\begin{alltt}
+\hlstd{all_hilda} \hlopt{%>%}
+  \hlkwd{group_by}\hlstd{(xwaveid)} \hlopt{%>%}
+  \hlkwd{filter}\hlstd{(}\hlkwd{max}\hlstd{(hgage)} \hlopt{<=} \hlnum{60}\hlstd{,}
+         \hlkwd{min}\hlstd{(hgage)} \hlopt{>=} \hlnum{30}\hlstd{)} \hlopt{%>%}
+  \hlkwd{filter}\hlstd{(}\hlkwd{any}\hlstd{(top_decile))} \hlopt{%>%}
+  \hlkwd{filter}\hlstd{(lnwte} \hlopt{!=} \hlnum{0}\hlstd{)} \hlopt{%>%}
+  \hlkwd{mutate}\hlstd{(}\hlkwc{lnwte_last} \hlstd{=} \hlkwd{last}\hlstd{(lnwte))} \hlopt{%>%}
+  \hlcom{#mutate(inc_quantile = paste0("Q", tot_inc_percentile_contemporaneous)) %>% }
+  \hlstd{as.data.table} \hlopt{%>%} \hlcom{# select(xwaveid, Year, lnwte, top_decile, tot_inc_percentile_contemporaneous) }
+  \hlstd{ungroup} \hlopt{%>%}
+  \hlkwd{group_by}\hlstd{(tot_inc_percentile_contemporaneous)} \hlopt{%>%}
+  \hlkwd{summarise}\hlstd{(}\hlkwc{time.in} \hlstd{=} \hlkwd{sum}\hlstd{(lnwte_last))} \hlopt{%>%}
+  \hlstd{ungroup} \hlopt{%>%}
+  \hlkwd{mutate}\hlstd{(}\hlkwc{time.in} \hlstd{= time.in}\hlopt{/}\hlkwd{sum}\hlstd{(time.in))} \hlopt{%>%}
+  \hlkwd{arrange}\hlstd{(tot_inc_percentile_contemporaneous)} \hlopt{%>%}
+  \hlstd{as.data.table} \hlopt{%>%}
+  \hlkwd{setkey}\hlstd{(tot_inc_percentile_contemporaneous)} \hlopt{%>%}
+  \hlkwd{merge}\hlstd{(}\hlkwd{data.table}\hlstd{(}\hlkwc{tot_inc_percentile_contemporaneous} \hlstd{=} \hlnum{1}\hlopt{:}\hlnum{10}\hlstd{),} \hlkwc{all.y} \hlstd{=} \hlnum{TRUE}\hlstd{)} \hlopt{%>%}
+  \hlkwd{mutate}\hlstd{(}\hlkwc{time.in} \hlstd{=} \hlkwd{ifelse}\hlstd{(tot_inc_percentile_contemporaneous} \hlopt{%in%} \hlnum{1}\hlopt{:}\hlnum{3}\hlstd{,}
+                          \hlkwd{first}\hlstd{(time.in)}\hlopt{/}\hlnum{3}\hlstd{,}
+                          \hlstd{time.in))} \hlopt{%>%}
+  \hlcom{# tbl_df}
+  \hlkwd{grplot}\hlstd{(}\hlkwd{aes}\hlstd{(}\hlkwc{x} \hlstd{=} \hlkwd{factor}\hlstd{(tot_inc_percentile_contemporaneous),}
+             \hlkwc{y} \hlstd{= time.in))} \hlopt{+}
+  \hlkwd{geom_bar}\hlstd{(}\hlkwc{stat} \hlstd{=} \hlstr{"identity"}\hlstd{)} \hlopt{+}
+  \hlkwd{scale_y_continuous}\hlstd{(}\hlstr{"Proportion of time spent"}\hlstd{,}
+                     \hlkwc{label}\hlstd{=percent,}
+                     \hlkwc{expand} \hlstd{=} \hlkwd{c}\hlstd{(}\hlnum{0}\hlstd{,}\hlnum{0}\hlstd{),}
+                     \hlkwc{limits} \hlstd{=} \hlkwd{c}\hlstd{(}\hlnum{0}\hlstd{,}\hlnum{0.5}\hlstd{))} \hlopt{+}
+  \hlkwd{scale_x_discrete}\hlstd{(}\hlstr{"Contemporaneous total income decile"}\hlstd{)} \hlopt{+}
+  \hlkwd{theme}\hlstd{(}\hlkwc{axis.title.y} \hlstd{=} \hlkwd{element_text}\hlstd{(}\hlkwc{angle} \hlstd{=} \hlnum{90}\hlstd{,} \hlkwc{margin} \hlstd{=} \hlkwd{margin}\hlstd{(}\hlnum{7}\hlstd{,}\hlnum{7}\hlstd{,}\hlnum{7}\hlstd{,}\hlnum{7}\hlstd{,} \hlstr{"pt"}\hlstd{)))}
+\end{alltt}
+
+
+{\ttfamily\noindent\bfseries\color{errorcolor}{\#\# Error in grouped\_df\_impl(data, unname(vars), drop): Column `xwaveid` is unknown}}\end{kframe}
+\end{knitrout}
+\begin{figure}
+\Caption{For those who reach the top decile, most will stay in the top two deciles}%
+{Proportion of years spent in given decile by those respondents aged no more than 60 and no less than 30 who were in the top decile at least once in the HILDA survey period}
+{fig:Prop_time_in_decile_limited_age_eperson}
+\includegraphics[width=\columnwidth]{figure_persistence_of_115k/Prop_time_in_decile_limited_age_eperson-1}
+\end{figure}
+
+
+\begin{knitrout}
+\definecolor{shadecolor}{rgb}{0.969, 0.969, 0.969}\color{fgcolor}\begin{kframe}
+\begin{alltt}
+\hlstd{all_hilda} \hlopt{%>%}
+  \hlkwd{group_by}\hlstd{(xwaveid)} \hlopt{%>%}
+  \hlkwd{filter}\hlstd{(}\hlkwd{max}\hlstd{(hgage)} \hlopt{<=} \hlnum{60}\hlstd{,}
+         \hlkwd{min}\hlstd{(hgage)} \hlopt{>=} \hlnum{30}\hlstd{)} \hlopt{%>%}
+  \hlkwd{filter}\hlstd{(}\hlkwd{sum}\hlstd{(top_decile)} \hlopt{>} \hlnum{0}\hlstd{)} \hlopt{%>%}
+  \hlkwd{filter}\hlstd{(lnwte} \hlopt{!=} \hlnum{0}\hlstd{)} \hlopt{%>%}
+  \hlkwd{mutate}\hlstd{(}\hlkwc{lnwte_last} \hlstd{=} \hlkwd{last}\hlstd{(lnwte))} \hlopt{%>%}
+  \hlcom{#mutate(inc_quantile = paste0("Q", tot_inc_percentile_contemporaneous)) %>% }
+  \hlstd{as.data.table} \hlopt{%>%} \hlcom{# select(xwaveid, Year, lnwte, top_decile, tot_inc_percentile_contemporaneous) }
+  \hlstd{ungroup} \hlopt{%>%}
+  \hlkwd{group_by}\hlstd{(tot_inc_percentile_contemporaneous)} \hlopt{%>%}
+  \hlkwd{summarise}\hlstd{(}\hlkwc{time.in} \hlstd{=} \hlkwd{sum}\hlstd{(lnwte_last))} \hlopt{%>%}
+  \hlstd{ungroup} \hlopt{%>%}
+  \hlkwd{mutate}\hlstd{(}\hlkwc{time.in} \hlstd{= time.in}\hlopt{/}\hlkwd{sum}\hlstd{(time.in))} \hlopt{%>%}
+  \hlkwd{arrange}\hlstd{(tot_inc_percentile_contemporaneous)}
+\end{alltt}
+
+
+{\ttfamily\noindent\bfseries\color{errorcolor}{\#\# Error in grouped\_df\_impl(data, unname(vars), drop): Column `xwaveid` is unknown}}\end{kframe}
+\end{knitrout}
+
+\subsection{How many hit top decile only once}
+\begin{knitrout}
+\definecolor{shadecolor}{rgb}{0.969, 0.969, 0.969}\color{fgcolor}\begin{kframe}
+\begin{alltt}
+\hlstd{all_hilda} \hlopt{%>%}
+  \hlkwd{group_by}\hlstd{(xwaveid)} \hlopt{%>%}
+  \hlkwd{filter}\hlstd{(lnwte} \hlopt{!=} \hlnum{0}\hlstd{)} \hlopt{%>%}
+  \hlkwd{mutate}\hlstd{(}\hlkwc{hits_top_decile_only_once} \hlstd{=} \hlkwd{sum}\hlstd{(top_decile)} \hlopt{==} \hlnum{1}\hlstd{,}
+         \hlkwc{never_hits_top_decile} \hlstd{=} \hlkwd{sum}\hlstd{(top_decile)} \hlopt{==} \hlnum{0}\hlstd{,}
+         \hlkwc{prop_in_top_decile} \hlstd{=} \hlkwd{mean}\hlstd{(top_decile),}
+         \hlkwc{last_lnwte} \hlstd{=} \hlkwd{last}\hlstd{(lnwte))} \hlopt{%>%}
+  \hlstd{as.data.table} \hlopt{%$%}
+  \hlkwd{weighted.mean}\hlstd{(hits_top_decile_only_once, last_lnwte)}
+\end{alltt}
+
+
+{\ttfamily\noindent\bfseries\color{errorcolor}{\#\# Error in grouped\_df\_impl(data, unname(vars), drop): Column `xwaveid` is unknown}}\end{kframe}
+\end{knitrout}
+
+\subsection{Number of times in top decile}
+\begin{knitrout}
+\definecolor{shadecolor}{rgb}{0.969, 0.969, 0.969}\color{fgcolor}\begin{kframe}
+\begin{alltt}
+\hlstd{number_times_top_decile} \hlkwb{<-}
+  \hlstd{all_hilda} \hlopt{%>%}
+  \hlkwd{filter}\hlstd{(lnwte} \hlopt{!=} \hlnum{0} \hlopt{|} \hlkwd{is.na}\hlstd{(lnwte))} \hlopt{%>%}
+  \hlkwd{group_by}\hlstd{(xwaveid)} \hlopt{%>%}
+  \hlkwd{mutate}\hlstd{(}\hlkwc{lnwte_last} \hlstd{=} \hlkwd{last}\hlstd{(lnwte),}
+         \hlkwc{z} \hlstd{=} \hlkwd{n}\hlstd{(),}
+         \hlkwc{sum_topdecile} \hlstd{=} \hlkwd{sum}\hlstd{(top_decile))} \hlopt{%>%}
+  \hlstd{ungroup} \hlopt{%>%}
+  \hlkwd{filter}\hlstd{(}\hlopt{!}\hlkwd{is.na}\hlstd{(lnwte_last))} \hlopt{%>%}
+  \hlkwd{group_by}\hlstd{(sum_topdecile)} \hlopt{%>%}
+  \hlstd{dplyr}\hlopt{::}\hlkwd{summarise}\hlstd{(}\hlkwc{mean.time} \hlstd{=} \hlkwd{sum}\hlstd{(lnwte_last))} \hlopt{%>%}
+  \hlstd{ungroup} \hlopt{%>%}
+  \hlkwd{mutate}\hlstd{(}\hlkwc{mean.time} \hlstd{= mean.time}\hlopt{/}\hlkwd{sum}\hlstd{(mean.time))} \hlopt{%>%}
+  \hlkwd{arrange}\hlstd{(sum_topdecile)}
+\end{alltt}
+
+
+{\ttfamily\noindent\bfseries\color{errorcolor}{\#\# Error in grouped\_df\_impl(data, unname(vars), drop): Column `xwaveid` is unknown}}\begin{alltt}
+\hlstd{number_times_top_decile}
+\end{alltt}
+
+
+{\ttfamily\noindent\bfseries\color{errorcolor}{\#\# Error in eval(expr, envir, enclos): object 'number\_times\_top\_decile' not found}}\end{kframe}
+\end{knitrout}
+
+\begin{knitrout}
+\definecolor{shadecolor}{rgb}{0.969, 0.969, 0.969}\color{fgcolor}\begin{kframe}
+\begin{alltt}
+\hlstd{number_times_top_decile} \hlopt{%>%}
+  \hlkwd{grplot}\hlstd{(}\hlkwd{aes}\hlstd{(}\hlkwc{x} \hlstd{=} \hlkwd{factor}\hlstd{(sum_topdecile),}
+             \hlkwc{y} \hlstd{= mean.time))} \hlopt{+}
+  \hlkwd{geom_bar}\hlstd{(}\hlkwc{stat} \hlstd{=} \hlstr{"identity"}\hlstd{)} \hlopt{+}
+  \hlkwd{scale_y_continuous}\hlstd{(}\hlstr{"Prop of respondents"}\hlstd{,}
+                     \hlkwc{label}\hlstd{=percent,}
+                     \hlkwc{expand} \hlstd{=} \hlkwd{c}\hlstd{(}\hlnum{0}\hlstd{,}\hlnum{0}\hlstd{),}
+                     \hlkwc{limits} \hlstd{=} \hlkwd{c}\hlstd{(}\hlnum{0}\hlstd{,}\hlnum{1}\hlstd{))} \hlopt{+}
+  \hlkwd{xlab}\hlstd{(}\hlstr{"Years in top decile"}\hlstd{)}
+\end{alltt}
+
+
+{\ttfamily\noindent\bfseries\color{errorcolor}{\#\# Error in eval(lhs, parent, parent): object 'number\_times\_top\_decile' not found}}\end{kframe}
+\end{knitrout}
+\begin{figure}
+\Caption{}{Proportion of respondents in HILDA}{fig:years_in_top_decile}
+\includegraphics[width=\columnwidth]{figure_persistence_of_115k/years_in_top_decile-1}
+\notes{}
+
+\source{HILDA}
+\end{figure}
+
+\begin{knitrout}
+\definecolor{shadecolor}{rgb}{0.969, 0.969, 0.969}\color{fgcolor}\begin{kframe}
+\begin{alltt}
+\hlstd{decile_presence_by_top_decile_longevity} \hlkwb{<-}
+  \hlstd{all_hilda} \hlopt{%>%}
+  \hlkwd{group_by}\hlstd{(xwaveid)} \hlopt{%>%}
+  \hlkwd{filter}\hlstd{(}\hlkwd{max}\hlstd{(hgage)} \hlopt{<=} \hlnum{60}\hlstd{,}
+         \hlkwd{min}\hlstd{(hgage)} \hlopt{>=} \hlnum{30}\hlstd{)} \hlopt{%>%}
+  \hlkwd{group_by}\hlstd{(xwaveid)} \hlopt{%>%}
+  \hlkwd{mutate}\hlstd{(}\hlkwc{top_deciler} \hlstd{=} \hlkwd{sum}\hlstd{(top_decile)} \hlopt{>} \hlnum{0}\hlstd{,}
+         \hlkwc{sum_topdecile} \hlstd{=} \hlkwd{sum}\hlstd{(top_decile),}
+         \hlkwc{last_lnwte} \hlstd{=} \hlkwd{last}\hlstd{(lnwte))} \hlopt{%>%}
+  \hlstd{ungroup} \hlopt{%>%}
+  \hlkwd{filter}\hlstd{(last_lnwte} \hlopt{>} \hlnum{0}\hlstd{,} \hlopt{!}\hlkwd{is.na}\hlstd{(last_lnwte),}
+         \hlstd{top_deciler)} \hlopt{%>%}
+  \hlkwd{group_by}\hlstd{(sum_topdecile)} \hlopt{%>%}
+  \hlkwd{summarise}\hlstd{(}\hlkwc{Q10} \hlstd{=} \hlkwd{weighted.mean}\hlstd{(top_decile, last_lnwte),}
+            \hlcom{#Q10nw = mean(top_decile),}
+            \hlkwc{Q09} \hlstd{=} \hlkwd{weighted.mean}\hlstd{(second_dec,last_lnwte),}
+            \hlkwc{Q08} \hlstd{=} \hlkwd{weighted.mean}\hlstd{(third_decile,last_lnwte),}
+            \hlkwc{Q07} \hlstd{=} \hlkwd{weighted.mean}\hlstd{(fourth_decile,last_lnwte),}
+            \hlkwc{Q06} \hlstd{=} \hlkwd{weighted.mean}\hlstd{(fifth_decile,last_lnwte),}
+            \hlkwc{Q05} \hlstd{=} \hlkwd{weighted.mean}\hlstd{(sixth_decile, last_lnwte),}
+            \hlkwc{QX} \hlstd{=} \hlkwd{weighted.mean}\hlstd{(bottom_deciles,last_lnwte),}
+            \hlkwc{n} \hlstd{=} \hlkwd{sum}\hlstd{(last_lnwte))} \hlopt{%>%}
+  \hlkwd{arrange}\hlstd{(sum_topdecile)}
+\end{alltt}
+
+
+{\ttfamily\noindent\bfseries\color{errorcolor}{\#\# Error in grouped\_df\_impl(data, unname(vars), drop): Column `xwaveid` is unknown}}\begin{alltt}
+\hlstd{decile_presence_by_top_decile_longevity} \hlopt{%>%}
+  \hlkwd{gather}\hlstd{(decile, presence, Q10}\hlopt{:}\hlstd{QX,} \hlkwc{factor_key} \hlstd{=} \hlnum{TRUE}\hlstd{)} \hlopt{%>%}
+  \hlkwd{arrange}\hlstd{(sum_topdecile,} \hlkwd{desc}\hlstd{(decile))} \hlopt{%>%}
+  \hlkwd{mutate}\hlstd{(}\hlkwc{decile.text} \hlstd{=} \hlkwd{ifelse}\hlstd{(sum_topdecile} \hlopt{==} \hlnum{1}\hlstd{,}
+                              \hlkwd{as.character}\hlstd{(decile),}
+                              \hlnum{NA_character_}\hlstd{))} \hlopt{%>%}
+  \hlkwd{mutate}\hlstd{(}\hlkwc{presence} \hlstd{=} \hlnum{13} \hlopt{*} \hlstd{presence)} \hlopt{%>%}
+  \hlkwd{group_by}\hlstd{(sum_topdecile)} \hlopt{%>%}
+  \hlkwd{arrange}\hlstd{(sum_topdecile, decile)} \hlopt{%>%}
+  \hlkwd{mutate}\hlstd{(}\hlkwc{text.y} \hlstd{=} \hlkwd{cumsum}\hlstd{(presence),}
+         \hlkwc{text.color} \hlstd{=} \hlkwd{ifelse}\hlstd{(decile} \hlopt{==} \hlstr{"Q10"}\hlstd{,} \hlstr{"white"}\hlstd{,} \hlstr{"black"}\hlstd{))} \hlopt{%>%}
+  \hlstd{ungroup} \hlopt{%>%}
+  \hlkwd{arrange}\hlstd{(sum_topdecile, decile)} \hlopt{%>%}
+  \hlkwd{grplot}\hlstd{(}\hlkwd{aes}\hlstd{(}\hlkwc{x} \hlstd{=} \hlkwd{factor}\hlstd{(sum_topdecile),}
+             \hlkwc{y} \hlstd{= presence,}
+             \hlkwc{fill} \hlstd{= decile))} \hlopt{+}
+  \hlkwd{geom_bar}\hlstd{(}\hlkwc{stat} \hlstd{=} \hlstr{"identity"}\hlstd{)} \hlopt{+}
+  \hlkwd{xlab}\hlstd{(}\hlstr{"Years in top decile"}\hlstd{)} \hlopt{+}
+  \hlkwd{scale_y_continuous}\hlstd{(}\hlstr{"Years"}\hlstd{,} \hlkwc{breaks} \hlstd{=} \hlnum{0}\hlopt{:}\hlnum{13}\hlstd{)} \hlopt{+}
+  \hlkwd{geom_text}\hlstd{(}\hlkwd{aes}\hlstd{(}\hlkwc{y} \hlstd{= text.y,} \hlkwc{label} \hlstd{= decile.text,}
+                \hlkwc{color} \hlstd{= text.color),}
+            \hlkwc{vjust} \hlstd{=} \hlnum{1.2}\hlstd{)} \hlopt{+}
+  \hlkwd{scale_color_manual}\hlstd{(}\hlkwc{values} \hlstd{=} \hlkwd{c}\hlstd{(}\hlstr{"white"} \hlstd{=} \hlstr{"white"}\hlstd{,} \hlstr{"black"} \hlstd{=} \hlstr{"black"}\hlstd{))}
+\end{alltt}
+
+
+{\ttfamily\noindent\bfseries\color{errorcolor}{\#\# Error in eval(lhs, parent, parent): object 'decile\_presence\_by\_top\_decile\_longevity' not found}}\end{kframe}
+\end{knitrout}
+\begin{figure}
+\includegraphics[width=\columnwidth]{figure_persistence_of_115k/decile_presence_by_top_decile_longevity-1}7
+\end{figure}
+
+\begin{knitrout}
+\definecolor{shadecolor}{rgb}{0.969, 0.969, 0.969}\color{fgcolor}\begin{kframe}
+\begin{alltt}
+\hlstd{marimekko_data_decile_presence_by_top_decile_longevity} \hlkwb{<-}
+  \hlstd{decile_presence_by_top_decile_longevity} \hlopt{%>%}
+  \hlkwd{gather}\hlstd{(decile, presence, Q10}\hlopt{:}\hlstd{QX,} \hlkwc{factor_key} \hlstd{=} \hlnum{TRUE}\hlstd{)} \hlopt{%>%}
+  \hlkwd{mutate}\hlstd{(}\hlkwc{subpresence} \hlstd{= presence} \hlopt{*} \hlstd{n)} \hlopt{%>%}
+  \hlkwd{arrange}\hlstd{(sum_topdecile, decile)} \hlopt{%>%}
+  \hlkwd{group_by}\hlstd{(decile)} \hlopt{%>%}
+  \hlkwd{mutate}\hlstd{(}\hlkwc{cumsum_n} \hlstd{=} \hlkwd{cumsum}\hlstd{(n),}
+         \hlkwc{cumsum_lag} \hlstd{=} \hlkwd{lag}\hlstd{(cumsum_n,} \hlkwc{default} \hlstd{=} \hlnum{0}\hlstd{),}
+         \hlkwc{cumsum_lead} \hlstd{=} \hlkwd{lead}\hlstd{(cumsum_n,} \hlkwc{default} \hlstd{=} \hlnum{Inf}\hlstd{))} \hlopt{%>%}
+  \hlstd{ungroup} \hlopt{%>%}
+  \hlkwd{group_by}\hlstd{(sum_topdecile)} \hlopt{%>%}
+  \hlkwd{mutate}\hlstd{(}\hlkwc{cumsubpresence} \hlstd{=} \hlkwd{cumsum}\hlstd{(presence),}
+         \hlkwc{cumsubpresence_lag} \hlstd{=} \hlkwd{lag}\hlstd{(cumsubpresence,} \hlkwc{default}\hlstd{=}\hlnum{0}\hlstd{),}
+         \hlkwc{cumsubpresence_lead} \hlstd{=} \hlkwd{lead}\hlstd{(cumsubpresence,} \hlkwc{default} \hlstd{=} \hlnum{0}\hlstd{))} \hlopt{%>%}
+  \hlstd{ungroup} \hlopt{%>%}
+  \hlkwd{mutate}\hlstd{(}\hlkwc{xmin} \hlstd{= cumsum_lag}\hlopt{/}\hlkwd{max}\hlstd{(cumsum_n),}
+         \hlkwc{xmax} \hlstd{= cumsum_n}\hlopt{/}\hlkwd{max}\hlstd{(cumsum_n),}
+         \hlkwc{xcenter} \hlstd{= (xmin} \hlopt{+} \hlstd{xmax)}\hlopt{/}\hlnum{2}\hlstd{)} \hlopt{%>%}
+  \hlkwd{group_by}\hlstd{(decile)} \hlopt{%>%}
+  \hlkwd{mutate}\hlstd{(}\hlkwc{cumsubpresence_decile_lag} \hlstd{=} \hlkwd{lag}\hlstd{(cumsubpresence,} \hlkwc{default}\hlstd{=}\hlnum{0}\hlstd{),}
+         \hlkwc{cumsubpresence_decile_lead} \hlstd{=} \hlkwd{lead}\hlstd{(cumsubpresence,} \hlkwc{default} \hlstd{=} \hlnum{0}\hlstd{),}
+         \hlkwc{y_center} \hlstd{= cumsubpresence_lag} \hlopt{+} \hlstd{presence} \hlopt{/} \hlnum{2}\hlstd{)} \hlopt{%>%}
+  \hlstd{ungroup}
+\end{alltt}
+
+
+{\ttfamily\noindent\bfseries\color{errorcolor}{\#\# Error in eval(lhs, parent, parent): object 'decile\_presence\_by\_top\_decile\_longevity' not found}}\begin{alltt}
+\hlstd{marimekko_data_decile_presence_by_top_decile_longevity} \hlopt{%>%}
+\hlstd{\{}
+  \hlkwd{grplot}\hlstd{(.,} \hlkwd{aes}\hlstd{(}\hlkwc{xmin} \hlstd{= xmin,}
+             \hlkwc{xmax} \hlstd{= xmax,}
+             \hlkwc{ymin} \hlstd{= cumsubpresence_lag,}
+             \hlkwc{ymax} \hlstd{= cumsubpresence,}
+             \hlkwc{fill} \hlstd{= decile))} \hlopt{+}
+  \hlkwd{geom_rect}\hlstd{()} \hlopt{+}
+  \hlkwd{geom_segment}\hlstd{(}\hlkwd{aes}\hlstd{(}\hlkwc{x} \hlstd{= xmin,} \hlkwc{xend} \hlstd{= xmax,}
+                   \hlkwc{y} \hlstd{= cumsubpresence_lag,} \hlkwc{yend} \hlstd{= cumsubpresence_lag),}
+               \hlkwc{color} \hlstd{=} \hlstr{"black"}\hlstd{)} \hlopt{+}
+  \hlkwd{geom_segment}\hlstd{(}\hlkwd{aes}\hlstd{(}\hlkwc{x} \hlstd{= xmax,} \hlkwc{xend} \hlstd{= xmax,}
+                   \hlkwc{y} \hlstd{= cumsubpresence,} \hlkwc{yend} \hlstd{= cumsubpresence_decile_lead),}
+               \hlkwc{color} \hlstd{=} \hlstr{"black"}\hlstd{)} \hlopt{+}
+  \hlkwd{geom_hline}\hlstd{(}\hlkwc{yintercept} \hlstd{=} \hlnum{1}\hlstd{)} \hlopt{+}
+  \hlkwd{scale_color_manual}\hlstd{(}\hlkwc{values} \hlstd{=} \hlkwd{c}\hlstd{(}\hlstr{"white"} \hlstd{=} \hlstr{"white"}\hlstd{,} \hlstr{"black"} \hlstd{=} \hlstr{"black"}\hlstd{))} \hlopt{+}
+  \hlkwd{scale_y_continuous}\hlstd{(}\hlkwc{expand} \hlstd{=} \hlkwd{c}\hlstd{(}\hlnum{0}\hlstd{,}\hlnum{0}\hlstd{),}
+                     \hlkwc{label} \hlstd{= percent)} \hlopt{+}
+  \hlkwd{scale_x_continuous}\hlstd{(}\hlstr{"Years in top decile"}\hlstd{,}
+                     \hlkwc{expand} \hlstd{=} \hlkwd{c}\hlstd{(}\hlnum{0}\hlstd{,}\hlnum{0}\hlstd{),}
+                     \hlkwc{breaks} \hlstd{=} \hlkwd{c}\hlstd{(}\hlkwd{unique}\hlstd{((.}\hlopt{$}\hlstd{xmin} \hlopt{+} \hlstd{.}\hlopt{$}\hlstd{xmax)}\hlopt{/}\hlnum{2}\hlstd{)),}
+                     \hlkwc{labels} \hlstd{=} \hlkwd{c}\hlstd{(}\hlkwd{paste0}\hlstd{(}\hlnum{1}\hlopt{:}\hlnum{14}\hlstd{)))} \hlopt{+}
+  \hlkwd{scale_y_continuous}\hlstd{(}\hlstr{"Prop time in each decile"}\hlstd{,}
+                     \hlkwc{label} \hlstd{= percent,}
+                     \hlkwc{expand} \hlstd{=} \hlkwd{c}\hlstd{(}\hlnum{0}\hlstd{,}\hlnum{0}\hlstd{),}
+                     \hlkwc{breaks} \hlstd{=} \hlkwd{c}\hlstd{(}\hlnum{0}\hlopt{:}\hlnum{10}\hlstd{)}\hlopt{/}\hlnum{10}\hlstd{)} \hlopt{+}
+  \hlkwd{coord_equal}\hlstd{()} \hlopt{+}
+  \hlkwd{annotate}\hlstd{(}\hlstr{"text"}\hlstd{,}
+           \hlkwc{x} \hlstd{=} \hlkwd{c}\hlstd{(}\hlkwd{rep}\hlstd{(}\hlkwd{min}\hlstd{(.}\hlopt{$}\hlstd{xmax),} \hlnum{5}\hlstd{)} \hlopt{/} \hlnum{2}\hlstd{,} \hlnum{0.38}\hlstd{,} \hlnum{0.75}\hlstd{),}
+           \hlkwc{y} \hlstd{=} \hlkwd{c}\hlstd{(}\hlkwd{sort}\hlstd{(}\hlkwd{unique}\hlstd{(}\hlkwd{filter}\hlstd{(., sum_topdecile} \hlopt{==} \hlkwd{min}\hlstd{(sum_topdecile))}\hlopt{$}\hlstd{y_center),} \hlkwc{decreasing} \hlstd{=} \hlnum{TRUE}\hlstd{)[}\hlnum{1}\hlopt{:}\hlnum{5}\hlstd{],} \hlnum{0.52}\hlstd{,} \hlnum{0.3}\hlstd{),}
+           \hlkwc{label} \hlstd{=} \hlkwd{c}\hlstd{(}\hlstr{"Bottom 40% of incomes"}\hlstd{,} \hlstr{"5th income decile"}\hlstd{,} \hlkwd{paste0}\hlstd{(}\hlnum{6}\hlopt{:}\hlnum{8}\hlstd{,} \hlstr{"th\textbackslash{}nincome\textbackslash{}ndecile"}\hlstd{),} \hlkwd{paste0}\hlstd{(}\hlnum{9}\hlopt{:}\hlnum{10}\hlstd{,} \hlstr{"th income decile"}\hlstd{)),}
+           \hlkwc{hjust} \hlstd{=} \hlkwd{c}\hlstd{(}\hlnum{0.3}\hlstd{,} \hlkwd{rep}\hlstd{(}\hlnum{0.5}\hlstd{,} \hlnum{4}\hlstd{),} \hlnum{0.3}\hlstd{,} \hlnum{0.3}\hlstd{),}
+           \hlkwc{size} \hlstd{=} \hlnum{20}\hlopt{/}\hlstd{(}\hlnum{14}\hlopt{/}\hlnum{5}\hlstd{),}
+           \hlkwc{fontface} \hlstd{=} \hlstr{"bold"}\hlstd{,}
+           \hlkwc{lineheight} \hlstd{=} \hlnum{0.75}\hlstd{,}
+           \hlkwc{color} \hlstd{=} \hlkwd{c}\hlstd{(}\hlkwd{rep}\hlstd{(}\hlstr{"black"}\hlstd{,} \hlnum{5}\hlstd{),} \hlkwd{rep}\hlstd{(}\hlstr{"white"}\hlstd{,} \hlnum{2}\hlstd{)))}
+\hlstd{\}}
+\end{alltt}
+
+
+{\ttfamily\noindent\bfseries\color{errorcolor}{\#\# Error in eval(lhs, parent, parent): object 'marimekko\_data\_decile\_presence\_by\_top\_decile\_longevity' not found}}\end{kframe}
+\end{knitrout}
+\begin{figure}
+\Caption{}{Percentage of time cohort was in decile}{fig:marimekko}
+\includegraphics[width=\columnwidth]{figure_persistence_of_115k/marimekko-1}
+\end{figure}
+
+\begin{knitrout}
+\definecolor{shadecolor}{rgb}{0.969, 0.969, 0.969}\color{fgcolor}\begin{kframe}
+\begin{alltt}
+\hlstd{marimekko.data} \hlopt{%>%}
+  \hlkwd{mutate}\hlstd{(}\hlkwc{xmax.ppt} \hlstd{=} \hlnum{100} \hlopt{*} \hlstd{xmax}\hlopt{/}\hlkwd{max}\hlstd{(xmin))} \hlopt{%>%}
+  \hlkwd{group_by}\hlstd{(sum_topdecile)} \hlopt{%>%}
+  \hlkwd{mutate}\hlstd{(}\hlkwc{uncum.y} \hlstd{=} \hlkwd{c}\hlstd{(}\hlkwd{first}\hlstd{(ymax),} \hlkwd{diff}\hlstd{(ymax)))} \hlopt{%>%}
+  \hlkwd{select}\hlstd{(sum_topdecile, decile, xmax.ppt, uncum.y)} \hlopt{%>%}
+  \hlkwd{spread}\hlstd{(decile, uncum.y)} \hlopt{%>%}
+  \hlkwd{write_csv}\hlstd{(}\hlstr{"hilda_marimekko.csv"}\hlstd{)}
+\end{alltt}
+
+
+{\ttfamily\noindent\bfseries\color{errorcolor}{\#\# Error in eval(lhs, parent, parent): object 'marimekko.data' not found}}\end{kframe}
+\end{knitrout}
+
+
+\section{Responding person}
+
+
+
+
+
+\end{document}

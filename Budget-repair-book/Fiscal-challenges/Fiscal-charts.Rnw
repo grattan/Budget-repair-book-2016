@@ -1,0 +1,1118 @@
+\documentclass[a3paper,twocolumn]{article}
+\usepackage[landscape]{geometry}
+
+\begin{document}
+
+<<knitrOpts, echo=FALSE, message=FALSE>>=
+library(tikzDevice)
+
+cmyk_pdf <- function(file, width, height){
+  pdf(file = file, width = width, height = height, colormodel = "cmyk")
+}
+
+# knitr chunk opts
+# fig.width must = out.width and same for *.height
+knitr::opts_chunk$set(fig.width=11.000, fig.height=7.00, 
+                      out.width="11.000in", out.height="7.00in",echo=FALSE,
+                      message=FALSE, warning=FALSE, fig.showtext = TRUE,
+                      dev='cmyk_pdf'
+                      ,fig.ext = "pdf"
+                      ,cache=FALSE
+)
+library(showtext)
+library(sysfonts)
+
+font.add("helvet", 
+         regular = "C:/Program Files/MiKTeX 2.9/fonts/type1/urw/helvetic/uhvr8a.pfb", 
+         bold = "C:/Program Files/MiKTeX 2.9/fonts/type1/urw/helvetic/uhvb8a.pfb", 
+         italic = "C:/Program Files/MiKTeX 2.9/fonts/type1/urw/helvetic/uhvro8a.pfb")
+
+every_nth <- function(x, n){
+  x <- as.character(x)
+  x[!(1:length(x) %in% seq(0, length(x), by = n))] <- ""
+  x
+}
+
+grplot <- function(...) grattan::grplot(...) + theme_hugh(base_family = "helvet")
+@
+
+<<loadPackages>>=
+library(data.table)
+library(dplyr)
+library(magrittr)
+library(readr)
+library(tidyr)
+library(readxl)
+library(grattan)
+library(ggplot2)
+library(ggrepel)
+library(scales)
+library(grid)
+library(gridExtra)
+library(cowplot)
+@
+
+<<theme_get, echo=TRUE, results='markup'>>=
+theme_get()
+@
+
+<<baptiste, fig.show='hide'>>=
+set_panel_size <- function(p=NULL, g=ggplotGrob(p), file=NULL, 
+                           margin = unit(0,"mm"),
+                           width=unit(3, "cm"), height=unit(2, "cm")){
+
+  panels <- grep("panel", g$layout$name)
+  panel_index_w<- unique(g$layout$l[panels])
+  panel_index_h<- unique(g$layout$t[panels])
+  nw <- length(panel_index_w)
+  nh <- length(panel_index_h)
+
+  # the following conversion is necessary
+  # because there is no `[<-`.unit method
+  # so promoting to unit.list allows standard list indexing
+  g$widths <- grid:::unit.list(g$widths)
+  g$heights <- grid:::unit.list(g$heights)
+
+  g$widths[panel_index_w] <-  rep(list(width), nw)[[1]]
+  g$heights[panel_index_h] <-  rep(list(height), nh)[[1]]
+  class(g) <- c("fixed", class(g), "ggplot")
+  if(!is.null(file))
+   ggsave(file, g, 
+          width = convertWidth(sum(g$widths) + margin, unitTo = "in", valueOnly = TRUE),
+          height = convertHeight(sum(g$heights) + margin, unitTo = "in", valueOnly = TRUE))
+
+  g
+}
+
+set_panel_height <- function(p=NULL, g=ggplotGrob(p), file=NULL, 
+                             margin = unit(0,"mm"),
+                             width="11in", height=unit(2, "cm")){
+
+  panels <- grep("panel", g$layout$name)
+  panel_index_w<- unique(g$layout$l[panels])
+  panel_index_h<- unique(g$layout$t[panels])
+  nw <- length(panel_index_w)
+  nh <- length(panel_index_h)
+
+  # the following conversion is necessary
+  # because there is no `[<-`.unit method
+  # so promoting to unit.list allows standard list indexing
+  g$heights <- grid:::unit.list(g$heights)
+
+  g$heights[panel_index_h] <-  rep(list(height), nh)[[1]]
+  class(g) <- c("fixed", class(g), "ggplot")
+  if(!is.null(file))
+   ggsave(file, g, 
+          width = convertWidth(sum(g$widths) + margin, unitTo = "in", valueOnly = TRUE),
+          height = convertHeight(sum(g$heights) + margin, unitTo = "in", valueOnly = TRUE))
+
+  g
+}
+@
+
+
+<<b5-Figure1, out.height="13.5in", fig.height=13.5>>=
+read.table(text="Year	Terms of trade	Structural balance	Cyclical	Underlying cash balance
+2003	0.00%	2.13%	-1.22%	0.92%
+2004	0.00%	1.51%	-0.58%	0.93%
+2005	0.30%	1.25%	-0.07%	1.47%
+2006	0.83%	0.61%	0.13%	1.58%
+2007	1.18%	-0.18%	0.58%	1.58%
+2008	1.41%	-0.62%	0.89%	1.68%
+2009	1.81%	-1.59%	-2.37%	-2.15%
+2010	1.54%	-2.61%	-3.13%	-4.20%
+2011	2.11%	-2.82%	-2.66%	-3.37%
+2012	2.35%	-3.52%	-1.74%	-2.92%
+2013	2.02%	-2.06%	-1.21%	-1.24%
+2014	1.82%	-3.36%	-1.45%	-3.10%
+2015				-2.60%
+2016				-2.10%
+2017				-1.50%
+2018				-0.80%
+2019				-0.40%
+", sep = "\t", header = TRUE, as.is = TRUE, check.names = FALSE, na.strings = "") %>%
+  gather(fill, y, -Year, factor_key = TRUE) %>%
+  mutate(fill = factor(fill, 
+                       labels = gsub("\\s+", "\n", unique(.$fill)), 
+                       ordered = TRUE)) %>%
+  mutate(y = as.numeric(gsub("%", "", y, fixed = TRUE))) %>%
+  {
+    grplot(., aes(x = Year, y = y, fill = fill), reverse = TRUE) + 
+      annotate("rect", 
+               fill = theGrey, 
+               alpha = 0.3, 
+               xmin = 2014.5, xmax = Inf, ymin = -Inf, ymax = Inf) + 
+      xlab("FY ending") + 
+      scale_y_continuous(label = function(x) ifelse(x < 0, paste0("\U2212", percent(abs(x) / 100)), percent(x / 100)), 
+                         breaks = seq(-4, 4, by = 2)) + 
+      geom_hline(yintercept = 0) + 
+      geom_bar(stat = "identity", position = "dodge") + 
+      scale_fill_manual(values = c(rev(gpal(3)), gpal(6)[1])) + 
+      geom_text(data = data_frame(Year = 2017.5, y = 4, fill = factor("Underlying\ncash\nbalance", levels = levels(.$fill))), 
+                mapping = aes(x = Year, y = y, fill = fill), 
+                hjust = 0.5, 
+                vjust = "inward",
+                family = "helvet",
+                size = 23/(14/5),
+                fontface = "bold",
+                label = "Forecast") + 
+    facet_grid(fill ~ .)  + 
+      theme(strip.text.y = element_text(angle = 0, size = 23, margin = margin(0,11/2,0,11/2,"pt")), 
+            panel.margin.y = unit(23, "pt"),
+            strip.text.x = element_text(angle = 0, size = 23, margin = margin(0,11/2,0,11/2,"pt")))
+  }
+
+@
+
+<<Figure2>>=
+read.table(text="Year	Commonwealth Revenue	Commonwealth exp 
+2003	25.55%	24.63%
+2004	25.28%	24.35%
+2005	25.59%	24.11%
+2006	25.65%	24.06%
+2007	25.08%	23.30%
+2008	25.03%	23.07%
+2009	23.26%	25.12%
+2010	21.97%	26.00%
+2011	21.45%	24.58%
+2012	22.17%	24.93%
+2013	23.08%	24.14%
+2014	22.78%	25.69%
+2015	23.52%	25.87%
+2016	23.99%	25.91%
+2017	24.21%	25.49%
+2018	24.71%	25.29%
+2019	25.18%	25.32%
+", header = TRUE, as.is = TRUE, sep = "\t", check.names = FALSE) %>%
+  gather(group, percent_GDP, -Year) %>%
+  mutate(group = gsub("Commonwealth\\s*", "", group), 
+         group = gsub("exp", "Expenditure", group)) %>%
+  mutate(percent_GDP = as.numeric(gsub("%", "", percent_GDP))) %>%
+  # cosmetic
+  group_by(group) %>%
+  # Average height of line (highest will have labels atop)
+  mutate(line_avg = mean(percent_GDP)) %>%
+  ungroup %>%
+  mutate(text_label = ifelse(line_avg == min(line_avg) & percent_GDP == min(percent_GDP), 
+                         as.character(group), 
+                         ifelse(line_avg == max(line_avg) & percent_GDP == max(percent_GDP), 
+                                as.character(group), 
+                                NA_character_)), 
+         text_y = ifelse(line_avg == min(line_avg), 
+                         # units of GDP %
+                         percent_GDP - 0.20, 
+                         percent_GDP + 0.20)) %>%
+
+  grplot(aes(x = Year, colour = group)) + 
+  annotate("rect", 
+           xmin = 2016, xmax = Inf, 
+           ymin = -Inf, ymax = Inf, 
+           fill = theGrey, 
+           alpha = 0.25) +
+  xlab("FY ending") + 
+  geom_line(aes(y = percent_GDP, group = group)) + 
+  geom_text(aes(label = text_label, y = text_y), 
+            na.rm = TRUE, 
+            vjust = 0.5, 
+            family = "helvet",
+            hjust = 0, 
+            size = 20/(14/5), 
+            fontface = "bold") + 
+  theme(panel.grid.major.y = element_line()) + 
+  scale_y_continuous(label = function(x) percent(x / 100))
+@
+
+
+<<Figure3-0, fig.show='hide', fig.showtext=TRUE>>=
+grattan_waterfall(
+  values = round(scan(text="-41121
+-6730
+-28
+25429
+13530
+11756
+-9741
+")/1000, 0),
+  labels = c("Budget\ndeficit\n2014-15", 
+             "Initial deficit\ngrowth at\nnominal\nGDP",
+             "2015-16\nBudget\nmeasures", 
+             "Personal\nincome tax\ngrowth\nabove GDP",
+             "Above GDP\nrevenue\ngrowth", 
+             "Below GDP\nspending\ngrowth", 
+             "Other"),
+rect_text_size = 23/(14/5), 
+calc_total = TRUE, 
+total_axis_text = "Budget\ndeficit\n2018-19",
+fill_by_sign = FALSE,lines_anchors = c("right", "left"), 
+fill_colours = c(col.5, col.5, col.5, col.3, col.3, col.3, col.2), theme_text_family = "helvet",
+ggplot_object_name = "Figure3"
+)
+@
+
+<<Figure3, out.width="19.25in", out.height="12.25in", fig.height=12.25, fig.width=19.25, fig.showtext=TRUE>>=
+Figure3 +  
+  scale_y_continuous(limits = c(-50, 10), expand = c(0,0), breaks = seq(-50, 10, by = 10), 
+                     label = function(x) ifelse(x < 0, paste0("\U2212", abs(x)), x))
+@
+
+<<Figure4>>=
+read.table(text="decile.from.2015	ratio.diff
+1	0
+2	0.002487829
+3	0.020586604
+4	0.014578582
+5	0.024535371
+6	0.020622293
+7	0.01662587
+8	0.013768067
+9	0.013599666
+10	0.004031323
+", sep = "\t", header = TRUE, as.is = TRUE) %>%
+  grplot(aes(x = factor(decile.from.2015), y = ratio.diff)) + 
+  geom_bar(stat = "identity") + 
+  xlab("Income decile in 2015") + 
+  scale_y_continuous(label = function(x) 100 * x, expand = c(0,0), limits = c(0, 0.025)) + 
+  theme(panel.grid.major.y = element_line())
+@
+
+<<Figure5>>=
+p_figure5 <- 
+read.table(text="Year	LabourQutilisation	Net foreignQincome	Terms ofQtrade	LabourQproductivity	Per capitaQincomeQgrowth
+1960s	0.6	0.0	0.1	2.2	3.0
+1970s	-0.3	0.0	-0.1	1.9	1.4
+1980s	0.6	-0.2	0.1	1.2	1.7
+1990s	0.0	0.1	-0.1	2.1	2.1
+2000 to 2013	0.0	0.0	0.8	1.5	2.3
+2014 to 2025	0.1	-0.1	-0.4	1.3	0.9
+2025 to 2055	-0.1	0.0	0.0	1.5	1.4
+", header = TRUE, sep = "\t", as.is = TRUE, check.names = FALSE) %>%
+  setnames(old = names(.), new = gsub("Q", "\n", names(.))) %>%
+  gather(fill, y, -Year, factor_key = TRUE) %>%
+  mutate(fill = factor(fill, ordered = TRUE), 
+         fill = factor(fill, 
+                       labels = gsub("Q", "\\1\n", 
+                                     unique(.$fill)), 
+                       ordered = TRUE), 
+         x = factor(Year, 
+                       levels = unique(.$Year), 
+                       labels = gsub("\\s", "\n", unique(.$Year)), 
+                       ordered = TRUE)) %>%
+{
+  grplot(NULL, aes(x = x, fill = fill), reverse = TRUE) + 
+    geom_blank(data = filter(., !grepl("er capita", fill, fixed = TRUE))) + 
+        annotate("rect",
+             xmin = 5.5, xmax = Inf,
+             ymin = -Inf, ymax = Inf,
+             fill = theGrey,
+             alpha = 0.5) +
+    annotate("text", 
+             x = 7.6, 
+             hjust = 0, 
+             size = 20/(14/5),
+             fontface = "bold",
+             family = "helvet",
+             lineheight = 0.8,
+             y = c(-0.55, -0.175, 0.3, 1.2), 
+             colour = gpal(4), 
+             label = gsub("\n", "\n ", unique(.$fill)[-5], fixed = TRUE)) + 
+    annotate("text", x = 5, y = 2.5, label = "GNI per capita", 
+             size = 20/(14/5),
+             fontface = "bold",
+             family = "helvet",
+             hjust = 1, 
+             vjust = 0) + 
+    geom_bar(data = filter(., y < 0, !grepl("er capita", fill, fixed = TRUE)), aes(y = y), stat = "identity") +
+    geom_bar(data = filter(., y >= 0, !grepl("er capita", fill, fixed = TRUE)), aes(y = y), stat = "identity") + 
+    geom_line(data = filter(., grepl("er capita", fill, fixed = TRUE)), aes(y = y, group = 1), 
+              colour = "black") +
+    geom_point(data = filter(., grepl("er capita", fill, fixed = TRUE)), aes(y = y, group = 1), 
+               size = 8,
+               colour = "black") +
+    geom_hline(yintercept = 0) + 
+    theme(plot.margin = margin(0.7, 8.35545454545455, 0.7, 0, "lines"), 
+          axis.title.x = element_blank())
+}
+grid::grid.newpage()
+gt <- ggplot2::ggplot_gtable(ggplot2::ggplot_build(p_figure5))
+gt$layout$clip[gt$layout$name == "panel"] <- "off"
+grid::grid.draw(gt)
+@
+
+<<Figure5-alt>>=
+read.table(text="Year	LabourQutilisation	Net foreignQincome	Terms ofQtrade	LabourQproductivity	Per capitaQincomeQgrowth
+1960s	0.6	0.0	0.1	2.2	3.0
+1970s	-0.3	0.0	-0.1	1.9	1.4
+1980s	0.6	-0.2	0.1	1.2	1.7
+1990s	0.0	0.1	-0.1	2.1	2.1
+2000 to 2013	0.0	0.0	0.8	1.5	2.3
+2014 to 2025	0.1	-0.1	-0.4	1.3	0.9
+2025 to 2055	-0.1	0.0	0.0	1.5	1.4
+", header = TRUE, sep = "\t", as.is = TRUE, check.names = FALSE) %>%
+  mutate(`Terms ofQtrade &Qnet foreignQincome` = `Terms ofQtrade` + `Net foreignQincome`) %>%
+  select(-`Net foreignQincome`, -`Terms ofQtrade`) %>%
+  select(Year, `LabourQutilisation`, `Terms ofQtrade &Qnet foreignQincome`, `LabourQproductivity`, `Per capitaQincomeQgrowth`) %>%
+  gather(fill, y, -Year, factor_key = TRUE) %>%
+  mutate(fill = factor(fill, ordered = TRUE), 
+         fill = factor(fill, 
+                       labels = gsub("Q", "\\1\n", 
+                                     unique(.$fill)), 
+                       ordered = TRUE)) %>%
+  mutate(Year = gsub("\\s", "\n", Year)) %>%
+  grplot(reverse = TRUE) + 
+  geom_bar(aes(x = Year, y = y, fill = fill), stat = "identity", position = "dodge") + 
+  facet_wrap(~fill) + 
+  scale_y_continuous(expand = c(0,0), limits = c(-0.5, 3)) + 
+  geom_hline(yintercept = 0) +
+      theme(strip.text.y = element_text(angle = 0), 
+            axis.title.x = element_blank(),
+            strip.text.x = element_text(angle = 0), panel.grid.major.y = element_line())
+@
+
+<<Figure6, out.width="11.55in", fig.width=11.55>>=
+p_figure6 <- 
+  read.table(text="FY	Income_growth
+2002	4.3%
+2003	7.8%
+2004	8.3%
+2005	8.4%
+2006	5.3%
+2007	5.4%
+2008	4.2%
+2009	-3.7%
+2010	4.5%
+2011	9.9%
+2012	8.4%
+2013	2.1%
+2014	5.63%
+2015	7.95%
+2016	7.36%
+2017	7.12%
+2018	7.14%
+2019	7.90%
+", header = TRUE, as.is = TRUE, sep = "\t") %>%
+  mutate(Income_growth = as.numeric(gsub("%", "", Income_growth)) / 100) %>%
+  grplot(aes(x = FY, y = Income_growth, fill = FY > 2015)) + 
+  
+  scale_y_continuous(label = function(x) ifelse(x < 0, paste0("\U2212", percent(abs(x))), percent(x)),
+                     limits = c(-0.04, 0.1), 
+                     expand = c(0,0),
+                     breaks = c(seq(-4, 10, by = 2)/100)) + 
+  # grid lines
+  annotate("segment", 
+           x = -Inf, xend = Inf, #xend = 2020, 
+           y = seq(-4, 10, by = 2)/100, 
+           yend = seq(-4, 10, by = 2)/100,
+           colour = '#DADADA',
+           size = 0.5) + 
+  # bars
+  geom_bar(stat = "identity", position = "dodge") + 
+  
+  annotate("segment", 
+           y = 0, 
+           yend = 0, 
+           x = -Inf, xend = 2020) +
+  
+  annotate("segment", 
+           x = -Inf, xend = 2020, 
+           y = 0.054, yend = 0.054, 
+           size = 1) + 
+  annotate("text", 
+           x = 2020 + 0.3, 
+           y = 0.054, 
+           vjust = 0.5,
+           label = "2002 to 2014", 
+           lineheight = 1,
+           family = "helvet",
+           hjust = 0, 
+           size = 20/(14/5),
+           fontface = "bold") + 
+  annotate("text", 
+           x = 2020 + 0.3, 
+           y = 0.054, 
+           vjust = 1,
+           label = "\naverage", 
+           lineheight = 0.7,
+           family = "helvet",
+           hjust = 0, 
+           size = 20/(14/5),
+           fontface = "bold") +
+  scale_x_continuous("FY ending", breaks = seq(2002, 2018, by = 4))  + 
+  coord_cartesian(xlim = c(2002, 2019)) + 
+  theme(plot.margin = grid::unit(c(0.7, 9.5, 0.5, 0.00), "lines"), axis.title.x = element_blank())
+  
+grid::grid.newpage()
+gt <- ggplot2::ggplot_gtable(ggplot2::ggplot_build(p_figure6))
+gt$layout$clip[gt$layout$name == "panel"] <- "off"
+grid::grid.draw(gt)
+@
+
+<<Figure7, fig.showtext=TRUE>>=
+p_figure7 <- 
+read.table(text="Year 	2015-16	2013-14	2014-15	Actual
+1960				64
+1961				62
+1962				62.5
+1963				64
+1964				70.5
+1965				67
+1966				66.8
+1967				66.2
+1968				63.2
+1969				65.7
+1970				66.7
+1971				62
+1972				58.5
+1973				69
+1974				75
+1975				68
+1976				65
+1977				63
+1978				57.5
+1979				57.5
+1980				60
+1981				59
+1982				58
+1983				57.5
+1984				58.5
+1985				57.8
+1986				52.7
+1987				49.8
+1988				54
+1989				62
+1990				62
+1991				59
+1992				57
+1993				54.5
+1994				53
+1995				55
+1996				56.5
+1997				58
+1998				57.8
+1999				55
+2000				57
+2001				58
+2002				59
+2003				60
+2004				64.5
+2005				70
+2006				78
+2007				83
+2008				88
+2009				95.5
+2010				91.5
+2011				110
+2012				110.5
+2013		102.5		99.5
+2014		101.5		97
+2015	85.5	100	90	85.5
+2016	77	98.5	88	
+2017	78	97	87	
+2018	78	96	84	
+2019	78	94.5	81	
+2020	78	93.5	78	
+2021	78	92.5	78	
+2022	78	91.5	78	
+2023	78	90.5	78	
+2024	78	89.8	78	
+2025	78	88.9	78	
+2026	78	88	78	
+", sep = "\t", check.names = FALSE, as.is = TRUE, header = TRUE) %>%
+  gather(group, y, -Year) %>%
+  grplot(aes(x = Year, y = y, group = group, colour = group))  + 
+  theme_hugh(base_family = "helvet") +
+  theme(plot.margin = grid::unit(c(0.7,1,0.5,0.00), "lines"), axis.title.x = element_blank()) + 
+  geom_hline(yintercept = c(60, 80, 100), color = theGrey, size = c(0.25, 0.25, 0.5)) + 
+  geom_line(na.rm = TRUE) + 
+  scale_colour_manual(values = c(rev(gpal(3)), "black")) + 
+  scale_x_continuous(expand = c(0,0)) +
+  annotate("text", 
+           label = "Actual", 
+           x = 1987.5, 
+           y = 66.75357,  # average of `Actual`
+           hjust = 0.5, 
+           vjust = 0.5,
+           family = "helvet",
+           fontface = "bold", 
+           size = 20/(14/5)) + 
+  annotate("text", 
+           label = c("2015-16\nBudget", "2014-15\nMYEFO", "2013-14\nBudget"), 
+           x = c(2015, 2019.5, 2014), 
+           y = c(78, 81, 103), 
+           hjust = c(1, 0, 0), 
+           vjust = c(1, 0, 0),
+           lineheight = 1,
+           family = "helvet",
+           size = 20/(14/5),
+           fontface = "bold",
+           color = gpal(3))
+grid::grid.newpage()
+gt <- ggplot2::ggplot_gtable(ggplot2::ggplot_build(p_figure7))
+gt$layout$clip[gt$layout$name == "panel"] <- "off"
+grid::grid.draw(gt)
+@
+
+<<Figure8-orig>>=
+read.table(text="Area	Historical growth 	Projection (to 25-26)
+Age Pension	4.5	2.5
+Defence	2.1	3.7
+Aged Care	6.8	4.6
+MBS	5.8	3.7
+Schools	5.5	2.1
+Hospitals	3.6	1.9
+DSP	5.3	2.1
+Carer support	10.2	5.9
+Child care	10.3	8.3
+Family Benefit      	3.3	-1.3
+PHI Rebate 	5.9	2.5
+Higher ed	5.2	1
+Newstart	1.7	0.4
+Pharmaceuticals	2.4	2
+", header = TRUE, as.is = FALSE, check.names = FALSE, sep = "\t", strip.white = TRUE) %>%
+  gather(fill, y, -Area) %>%
+  mutate(Area = factor(Area, levels = rev(unique(.$Area)), ordered = TRUE)) %>%
+  grplot(aes(x = Area, y = y, fill = fill)) + 
+  geom_bar(stat = "identity", position = "dodge") + 
+  geom_hline(yintercept = 0) + 
+  scale_y_continuous("Spending growth", 
+                     label = function(x) percent(x / 100)) +
+  theme(axis.text.x = element_text(size = rel(0.8), angle = 90, hjust = 1, vjust = 0.5), 
+        axis.title.x = element_blank())
+@
+
+<<Figure8-flip>>=
+read.table(text="Area	Historical growth 	Projection (to 25-26)
+Age Pension	4.5	2.5
+Defence	2.1	3.7
+Aged Care	6.8	4.6
+MBS	5.8	3.7
+Schools	5.5	2.1
+Hospitals	3.6	1.9
+DSP	5.3	2.1
+Carer support	10.2	5.9
+Child care	10.3	8.3
+Family Benefit      	3.3	-1.3
+PHI Rebate 	5.9	2.5
+Higher ed	5.2	1
+Newstart	1.7	0.4
+Pharmaceuticals	2.4	2
+", header = TRUE, as.is = FALSE, check.names = FALSE, sep = "\t", strip.white = TRUE) %>%
+  gather(fill, y, -Area) %>%
+  mutate(Area = factor(Area, levels = rev(unique(.$Area)), ordered = TRUE)) %>%
+  grplot(aes(x = Area, y = y, fill = fill)) + 
+  geom_bar(stat = "identity", position = "dodge") + 
+  geom_hline(yintercept = 0) + 
+  scale_y_continuous("Spending growth", 
+                     label = function(x) percent(x / 100)) +
+  coord_flip()  
+@
+
+<<Figure8-altered, out.height="8in", fig.height=8>>=
+
+read.table(text="Area	Historical growth 	Projection (to 25-26)
+Age Pension	4.5	2.5
+Defence	2.1	3.7
+Aged Care	6.8	4.6
+MBS	5.8	3.7
+Schools	5.5	2.1
+Hospitals	3.6	1.9
+DSP	5.3	2.1
+Carer support	10.2	5.9
+Child care	10.3	8.3
+Family Benefit      	3.3	-1.3
+PHI Rebate 	5.9	2.5
+Higher ed	5.2	1
+Newstart	1.7	0.4
+Pharmaceut.	2.4	2
+", header = TRUE, as.is = FALSE, check.names = FALSE, sep = "\t", strip.white = TRUE) %>%
+  mutate(y = `Projection (to 25-26)`- `Historical growth`) %>%
+  arrange(desc(y)) %>%
+  mutate(Area = factor(Area, levels = (unique(.$Area)), ordered = TRUE)) %>%
+  mutate(bar_label_just = ifelse(y > -0.5, 1.0, 0.0), 
+         bar_label_y = ifelse(y > -0.5, y - 0.05, y + 0.05)) %>%
+  grplot(aes(x = Area, y = y, fill = y >= 0)) + 
+  geom_bar(stat = "identity", position = "dodge") + 
+  annotate("rect", 
+           ymin = -Inf, ymax = -2.5, xmin = 2.3, xmax = 4.7, fill = "white") +
+  geom_text(aes(label = Area, y = bar_label_y, hjust = bar_label_just, 
+            colour = factor(y < -0.5)),
+            family = "helvet",
+            size = 18/(14/5)) + 
+  scale_color_manual(values = c("black", "white")) + 
+  # annotate("blank", x = -2, y = 0) + 
+  annotate("text",
+           x = 3.5, 
+           y = c(-4.6, 1.95),  
+           label = c( "Spending growth\nforecast to be lower\nthan previous decade", 
+                     "Spending growth\nforecast to be higher\nthan previous decade"), 
+           colour = gpal(2), 
+           hjust = "inward",
+           family = "helvet",
+           vjust = 0.5,
+           lineheight = 0.9,
+           size = 20/(14/5),
+           fontface = "bold")  + 
+  geom_hline(yintercept = 0, size = 1) + 
+  scale_y_continuous("Percentage points between forecast spending growth\nand 2003 to 2013 annual spending growth", 
+                     label = function(x) ifelse(x < 0, paste0("\U2212", abs(x)), x), 
+                     limits = c(-4.6, 2.00), breaks = seq(-4, 2, by = 2), 
+                     expand = c(0,0.1)) +
+  coord_flip() + 
+  theme(panel.grid.major.x = element_line(),
+        panel.grid.major.y = element_blank(),
+        axis.ticks.y = element_blank(),
+        axis.line.y = element_blank(),
+        axis.text.y = element_blank() 
+        #,axis.title.x = element_blank()
+        ) 
+
+@
+
+<<Figure9>>=
+line_colors <- c(rev(gpal(8)), "black", "white")
+names(line_colors) <- c(2010:2016, "Actual", "black", "white")
+
+read.table(text="Year of forecast	2003	2004	2005	2006	2007	2008	2009	2010	2011	2012	2013	2014	2015	2016	Actual
+2001	0.8														0.8
+2002	-0.2	-0.1													-0.1
+2003	0.3	0.5	1												1
+2004	0.5	0.3	0.6	1											1
+2005	0.6	0.2	0.3	1.1	1.5										1.5
+2006	0.8	0.1	0.2	1	1.5	1.6									1.6
+2007		0.5	0.4	0.8	1.1	1.3	1.6								1.6
+2008			0.4	0.8	1	1	1.8	1.9							1.9
+2009				0.9	1	1.1	1.9	-2.7	-2.2						-2.2
+2010					1	1.2	1.7	-4.5	-4.4	-4.3					-4.3
+2011						1	1.7	-4.6	-2.9	-3.6	-3.4				-3.4
+2012							1.6	-3.2	-0.9	-1.5	-3	-2.9			-2.9
+2013								-2.2	0.1	0.2	0.1	-1.3	-1.2		-1.2
+2014									0.3	0.2	0.1	-1.1	-3.1	-3.1	-3.1
+2015										0.3	0.3	-0.6	-1.8	-2.6	
+2016											0.4	0	-1	-2.1	
+2017												0.4	-0.6	-1.5	
+2018													-0.2	-0.8	
+2019														-0.4	
+", header = TRUE, sep = "\t", check.names = FALSE) %>%
+  gather(group, y, `2003`:`Actual`, factor_key = FALSE) %>%
+  filter(group %in% c(2010:2016, "Actual")) %>%
+  filter(complete.cases(.)) %>%
+  mutate(group = factor(group, ordered = TRUE)) %>%
+  mutate(text_color = ifelse(as.character(group) %in% c("Actual", "2015", "2016"), "white", "black")) %>%
+  group_by(group) %>%
+  mutate(text_label = ifelse(1:n() == n(), 
+                             as.character(group), 
+                             NA_character_)) %>% 
+  grplot(., reverse = TRUE) + 
+  geom_line(aes(x = `Year of forecast`, y = y, group =  group, color = group)) +
+  scale_y_continuous(label = function(x) ifelse(x < 0, paste0("\U2212", abs(x)), x)) + 
+  geom_label_repel(aes(x = `Year of forecast`, 
+                       y = y, 
+                       label = text_label, 
+                       fill = group, 
+                       color = text_color),
+                   nudge_y = 0.5, 
+                   box.padding = unit(0.25, "lines"),
+                   label.padding = unit(5, "pt"),
+                   family = "helvet",
+                   nudge_x = 0.5,
+                   size = 20/(14/5),
+                   fontface = "bold",
+                   na.rm = TRUE)  + 
+  scale_color_manual(values = line_colors)
+@
+
+<<Figure9-facet, out.height="11in", fig.height=11>>=
+line_colors <- c(rev(gpal(9)), "black", "white")
+names(line_colors) <- c(2009:2016, "Actual", "black", "white")
+
+read.table(text="Year of forecast	2003	2004	2005	2006	2007	2008	2009	2010	2011	2012	2013	2014	2015	2016	Actual
+2001	0.8														0.8
+2002	-0.2	-0.1													-0.1
+2003	0.3	0.5	1												1
+2004	0.5	0.3	0.6	1											1
+2005	0.6	0.2	0.3	1.1	1.5										1.5
+2006	0.8	0.1	0.2	1	1.5	1.6									1.6
+2007		0.5	0.4	0.8	1.1	1.3	1.6								1.6
+2008			0.4	0.8	1	1	1.8	1.9							1.9
+2009				0.9	1	1.1	1.9	-2.7	-2.2						-2.2
+2010					1	1.2	1.7	-4.5	-4.4	-4.3					-4.3
+2011						1	1.7	-4.6	-2.9	-3.6	-3.4				-3.4
+2012							1.6	-3.2	-0.9	-1.5	-3	-2.9			-2.9
+2013								-2.2	0.1	0.2	0.1	-1.3	-1.2		-1.2
+2014									0.3	0.2	0.1	-1.1	-3.1	-3.1	-3.1
+2015										0.3	0.3	-0.6	-1.8	-2.6	
+2016											0.4	0	-1	-2.1	
+2017												0.4	-0.6	-1.5	
+2018													-0.2	-0.8	
+2019														-0.4	
+", header = TRUE, sep = "\t", check.names = FALSE) %>%
+  gather(group, y, `2003`:`Actual`, factor_key = FALSE) %>%
+  filter(group %in% c(2009:2016, "Actual")) %>%
+  filter(complete.cases(.)) %>%
+  mutate(group = factor(group, ordered = TRUE)) %>%
+  mutate(text_color = ifelse(as.character(group) %in% c("Actual", "2015", "2016"), "white", "black")) %>%
+  group_by(group) %>%
+  mutate(text_label = ifelse(1:n() == n(), 
+                             as.character(group), 
+                             NA_character_)) %>% 
+  filter(`Year of forecast` > 2006) %>%
+{
+  grplot(reverse = TRUE) + 
+  geom_hline(yintercept = 0) + 
+  geom_line(data = filter(., group != "Actual"), 
+            aes(x = `Year of forecast`, y = y, group =  group, color = group)) +
+  annotate("line", 
+           x = filter(., group == "Actual")$`Year of forecast`, 
+           y = filter(., group == "Actual")$y, 
+           group = 1, 
+           size = 0.75,
+           colour = theGrey) + 
+    
+    scale_color_manual(values = line_colors) + 
+    xlab("Year")
+    facet_wrap(~group, ncol = 3) + 
+    theme(strip.background = element_blank())
+}
+@
+
+
+<<Figure9a>>=
+line_colors <- c(rev(gpal(8)), "black", "white")
+names(line_colors) <- c(2010:2016, "Actual", "black", "white")
+
+read.table(text="Year of forecast	2003	2004	2005	2006	2007	2008	2009	2010	2011	2012	2013	2014	2015	2016	Actual
+2001	0.8														0.8
+2002	-0.2	-0.1													-0.1
+2003	0.3	0.5	1												1
+2004	0.5	0.3	0.6	1											1
+2005	0.6	0.2	0.3	1.1	1.5										1.5
+2006	0.8	0.1	0.2	1	1.5	1.6									1.6
+2007		0.5	0.4	0.8	1.1	1.3	1.6								1.6
+2008			0.4	0.8	1	1	1.8	1.9							1.9
+2009				0.9	1	1.1	1.9	-2.7	-2.2						-2.2
+2010					1	1.2	1.7	-4.5	-4.4	-4.3					-4.3
+2011						1	1.7	-4.6	-2.9	-3.6	-3.4				-3.4
+2012							1.6	-3.2	-0.9	-1.5	-3	-2.9			-2.9
+2013								-2.2	0.1	0.2	0.1	-1.3	-1.2		-1.2
+2014									0.3	0.2	0.1	-1.1	-3.1	-3.1	-3.1
+2015										0.3	0.3	-0.6	-1.8	-2.6	
+2016											0.4	0	-1	-2.1	
+2017												0.4	-0.6	-1.5	
+2018													-0.2	-0.8	
+2019														-0.4	
+", header = TRUE, sep = "\t", check.names = FALSE) %>%
+  gather(group, y, `2003`:`Actual`, factor_key = FALSE) %>%
+  filter(group %in% c(2010:2016, "Actual")) %>%
+  filter(complete.cases(.)) %>%
+  mutate(group = factor(group, ordered = TRUE)) %>%
+  mutate(text_color = ifelse(as.character(group) %in% c("Actual", "2015", "2016"), "white", "black")) %>%
+  group_by(group) %>%
+  mutate(text_label = ifelse(!as.character(group) %in% c("2010", "Actual"),
+                             ifelse(1:n() == n(),       
+                                    as.character(group), 
+                                    NA_character_), 
+                             ifelse(as.character(group) == "Actual" & `Year of forecast` == 2008,
+                                    as.character(group), 
+                                    ifelse(as.character(group) == "2010" & 1:n() == 4, 
+                                           as.character(group), 
+                                           NA_character_)))) %>% 
+  # needs to be corrected!
+  mutate(text_label = ifelse(text_label == "Actual", text_label, 
+                             as.character(as.numeric(text_label) - 1))) %>%
+{
+  grplot(., reverse = TRUE) + 
+    geom_line(aes(x = `Year of forecast`, y = y, group =  group, color = group)) +
+    geom_text_repel(aes(x = `Year of forecast`, 
+                        y = y, 
+                        label = text_label, 
+                        fill = group, 
+                        color = group),
+                    nudge_y = ifelse(as.character(.$group) == "Actual", -5, 0.3), force = 1.75, 
+                    point.padding = unit(0.0, "lines"),
+                    box.padding = unit(0.5, "lines"),
+                    nudge_x = ifelse(as.character(.$group) == "Actual", 0, 1),
+                    size = 22/(14/5),
+                    family = "helvet",
+                    fontface = "bold",
+                    na.rm = TRUE)  +
+    theme(axis.title.x = element_blank()) + 
+    scale_y_continuous(breaks = seq(-4, 2, by = 2), label = function(x) ifelse(x < 0, paste0("\U2212", abs(x)), x)) 
+}
+@
+\clearpage
+<<Figure10, out.height="12in", fig.height=12>>=
+read.table(text="Year	Policy decisions - revenue ($m)	Policy decisions - expenses ($m)	Parameter variations -revenue ($m)	Parameter variations -  expenses ($m)	NET change in fiscal balance 
+2009	-2.06	-4.58	2.48	1.13	-3.03
+2010	-1.35	-3.96	-0.15	0.68	-4.78
+2011	-0.40	-2.26	-1.53	0.25	-3.95
+2012	0.23	-1.77	-2.28	-0.55	-4.38
+2013	0.49	-0.01	0.16	-0.40	0.24
+2014	1.00	-1.12	-3.11	0.01	-3.22
+2015	1.01	-0.45	-3.66	0.05	-3.04
+2016	0.74	0.41	-3.42	-0.13	-2.40
+2017	-0.06	0.79	-1.89	-0.68	-1.84
+2018	0.00	-0.05	-0.77	0.24	-0.58
+", sep = "\t", header = TRUE, check.names = FALSE, as.is = TRUE) %>%
+  gather(colour, y, -Year, factor_key = TRUE) %>%
+  mutate(colour = factor(colour, ordered = TRUE)) %>%
+  mutate(revenue_v_expenses = gsub("^.*((expenses)|(revenue)).*$", "\\1", colour)) %>%
+  grplot(aes(x = Year, y = y, fill = factor(colour))) + 
+  geom_bar(stat = "identity", position = "dodge") + 
+  facet_grid(colour ~ .)
+@
+
+<<Figure10-wrapped, out.height="11in", fig.height=11>>=
+read_excel("Figure10.xlsx", sheet = 1) %>%
+  gather(colour, y, -Year, factor_key = TRUE) %>%
+  filter(!grepl("fiscal.balance", colour)) %>%
+  mutate(colour = factor(colour, ordered = TRUE)) %>%
+  mutate(revenue_v_expenses = gsub("^.*((expenses)|(revenue)).*$", "\\1", colour)) %>%
+  grplot(aes(x = Year, y = y, fill = factor(colour))) + 
+  geom_hline(yintercept = 0) + 
+  annotate("rect", xmin = 2015.5, xmax = Inf, ymin = -Inf, ymax = Inf, fill = theGrey, alpha = 0.3) + 
+  geom_bar(stat = "identity", position = "dodge")  + 
+  scale_y_continuous(label = function(x) paste0(ifelse(x < 0, "\U2212", ""), percent(abs(x) / 100))) + 
+  theme(panel.grid.major.y = element_line(), 
+        strip.text = element_text(size = 23),
+        strip.background = element_blank()) + 
+  facet_wrap(~colour)
+@
+
+\clearpage
+<<Figure11>>=
+read.table(text="Year	Revenue	Expenditure
+2003	0.1397	0.1347
+2004	0.1418	0.1341
+2005	0.1406	0.1340
+2006	0.1417	0.1328
+2007	0.1387	0.1325
+2008	0.1352	0.1312
+2009	0.1358	0.1360
+2010	0.1475	0.1450
+2011	0.1400	0.1385
+2012	0.1387	0.1388
+2013	0.1348	0.1398
+2014	0.1411	0.1392
+2015	0.1428	0.1432
+2016	0.1423	0.1394
+2017	0.1408	0.1366
+2018	0.1380	0.1334
+", header = TRUE, check.names = TRUE, sep = "\t") %>%
+  gather(group, y, -Year) %>%
+  grplot(aes(x = Year, y = y, group = group, colour = group)) + 
+  geom_line() + 
+  geom_text(data = data_frame(Year = c(2003, 2003), y = c(0.1418, 0.1347), group = c("Revenue", "Expenditure")), 
+            aes(label = as.character(group)), 
+            hjust = 0, 
+            vjust = 0, 
+            nudge_y = 0.00075,
+            fontface = "bold", 
+            family = "helvet",
+            size = 20/(14/5)) +
+  scale_x_continuous(breaks = seq(2003, 2019, by = 4)) + 
+  scale_y_continuous(label=percent, limits = c(0.13, 0.15), expand = c(0,0)) + 
+  theme(panel.grid.major.y = element_line(), axis.title.x = element_blank())
+@
+
+<<Figure12, out.height="12in", fig.height=12, fig.showtext=TRUE>>=
+read.table(text="Year	Net debt 	Net operating balance 
+2003	-10900	5639
+2004	-18258	8718
+2005	-26392	8415
+2006	-36986	9514
+2007	-30839	9333
+2008	-23393	4655
+2009	-11795	229
+2010	1215	3693
+2011	11626	2268
+2012	27557	1084
+2013	47081	-7591
+2014	55503	2657
+2015	58204	-408
+2016	56993	5496
+2017	61641	7774
+2018	61198	8677
+", sep = "\t", header = TRUE, check.names = FALSE) %>%
+  gather(fill, y, -Year) %>%
+  # mutate(fill = factor(fill, levels = rev(unique(.$fill)), ordered = TRUE)) %>%
+  mutate(text_label = ifelse(Year == 2013, as.character(fill), NA_character_)) %>%
+  grplot(aes(x = Year, y = y, fill = fill)) + 
+  theme_hugh(base_family = "helvet") + 
+  annotate("rect", xmin = 2015.5, xmax = Inf, ymin = -Inf, ymax = Inf, fill = theGrey, alpha = 0.3) + 
+  geom_area(color = "black") + 
+  scale_x_continuous(expand = c(0,0)) + 
+  geom_text(aes(label = text_label, color = fill), 
+            family = "helvet",
+            hjust = 1, 
+            nudge_x = -0.33, 
+            fontface = "bold", 
+            size = 20/(14/5)) + 
+  scale_y_continuous(label = function(x) paste0(grattan_dollar(x / 1000), "\u2009", "bn")) + 
+  scale_x_continuous(expand = c(0,0), limits = c(2003, 2018), breaks = seq(2003, 2018, by = 4)) + 
+  facet_grid(fill ~ .) + 
+  theme(strip.text = element_blank(), strip.background = element_blank(), panel.margin = unit(0.05, "npc"))
+@
+
+
+\clearpage
+
+<<Figure13-pre, fig.showtext=TRUE, fig.show='hold'>>=
+grattan_waterfall(values = c(2.9, 1.8, 3, 4.2, 3.9, 3.1, 4.1, 4.1, 3.1), 
+                  labels = c(paste0(seq(0, 70, by = 10), "s"), "80s+"), 
+                  fill_by_sign = FALSE,
+                  theme_text_family = "helvet",
+                  fill_colours = rep(gpal(4)[2], 9),
+                  lines_anchors = c("right", "left"),
+                  put_rect_text_outside_when_value_below = 3,
+                  ggplot_object_name =  "Figure13_panelA")
+grattan_waterfall(values = c(30.4, 7.4, 20.7), 
+                  labels = c("\nTotal\nnon-demographic", "", " "), 
+                  fill_by_sign = FALSE,
+                  theme_text_family = "helvet", 
+                  fill_colours = rep(gpal(4)[2:4]), 
+                  lines_anchors = c("right", "left"),
+                  ggplot_object_name =  "Figure13_panelB")
+
+Figure13_panelA  <- 
+  Figure13_panelA + 
+  scale_y_continuous(expand = c(0,0), limits = c(0, 60), breaks = seq(0, 60, 20), 
+                     label = function(x) paste0(grattan_dollar(x), "\u2009", "bn")) + 
+  xlab("Age") + 
+  theme(plot.margin = unit(c(0.7, 0, 0.5, 0), "lines"),
+        panel.grid.major.y = element_line(), 
+        axis.text.x = element_text(size = 20))
+  
+
+Figure13_panelB  <- 
+  Figure13_panelB + 
+  geom_blank(data = data_frame(x = 3.6, y = 0), aes(x,y)) + 
+  scale_y_continuous(expand = c(0,0), limits = c(0, 60), breaks = seq(0, 60, 20)) + 
+  theme(axis.ticks.y = element_blank(), 
+        axis.text.y = element_blank(), 
+        axis.line.y = element_blank(),
+        axis.text.x = element_text(size = 20, face = "bold", colour = gpal(4)[2]),
+        panel.grid.major.y = element_line())  + 
+  
+  annotate("text", 
+           x = c(2, 3), 
+           y = c(30.4, 37.8) - 2, 
+           label = c("Ageing", "Pop.\ngrowth"),
+           fontface = "bold", 
+           lineheight = 0.9,
+           size = 20/(14/5),
+           vjust = 1,
+           color = gpal(4)[3:4],
+           family = "helvet") 
+
+Figure13_panelB_gt <- ggplot2::ggplot_gtable(ggplot2::ggplot_build(Figure13_panelB))
+Figure13_panelB_gt$layout$clip[Figure13_panelB_gt$layout$name == "panel"] <- "off"
+@
+<<Figure13, fig.showtext=TRUE, fig.show='hold'>>=
+plot_grid(Figure13_panelA, Figure13_panelB, ncol = 2, align = "h", rel_widths = c(9-0.2, 3-0.2) )
+@
+
+<<Figure13-baptiste>>=
+# set_panel_size(Figure13_panelA, )
+@
+\clearpage
+<<Figure14, fig.width=12.1, fig.height=7, out.width="12.1in", out.height="7in", message=TRUE>>=
+read.table(text="FY	Roads & bridges 	Railways 	Water 	Sewerage, drainage 	Electricity	 Other 
+1987	0.76%	0.09%	0.18%	0.20%	0.42%	0.14%
+1988	0.60%	0.08%	0.15%	0.16%	0.31%	0.11%
+1989	0.56%	0.04%	0.13%	0.14%	0.28%	0.10%
+1990	0.60%	0.08%	0.13%	0.14%	0.33%	0.14%
+1991	0.63%	0.10%	0.16%	0.14%	0.35%	0.12%
+1992	0.59%	0.10%	0.16%	0.13%	0.35%	0.11%
+1993	0.70%	0.12%	0.14%	0.13%	0.32%	0.10%
+1994	0.74%	0.15%	0.13%	0.11%	0.29%	0.11%
+1995	0.66%	0.19%	0.09%	0.11%	0.26%	0.08%
+1996	0.65%	0.19%	0.07%	0.09%	0.17%	0.13%
+1997	0.59%	0.22%	0.06%	0.07%	0.20%	0.11%
+1998	0.66%	0.16%	0.05%	0.09%	0.17%	0.09%
+1999	0.70%	0.14%	0.07%	0.09%	0.17%	0.10%
+2000	0.68%	0.09%	0.08%	0.14%	0.20%	0.09%
+2001	0.61%	0.07%	0.06%	0.11%	0.22%	0.08%
+2002	0.52%	0.08%	0.06%	0.08%	0.24%	0.09%
+2003	0.51%	0.10%	0.06%	0.09%	0.25%	0.08%
+2004	0.45%	0.14%	0.07%	0.10%	0.24%	0.07%
+2005	0.51%	0.19%	0.09%	0.09%	0.27%	0.07%
+2006	0.56%	0.18%	0.09%	0.09%	0.36%	0.10%
+2007	0.67%	0.15%	0.11%	0.11%	0.41%	0.14%
+2008	0.73%	0.12%	0.33%	0.15%	0.42%	0.12%
+2009	0.90%	0.17%	0.32%	0.15%	0.50%	0.17%
+2010	0.83%	0.26%	0.32%	0.18%	0.52%	0.17%
+2011	0.87%	0.29%	0.21%	0.20%	0.46%	0.16%
+2012	0.93%	0.30%	0.19%	0.16%	0.48%	0.11%
+2013	0.91%	0.28%	0.17%	0.15%	0.46%	0.15%
+2014	0.79%	0.22%	0.12%	0.13%	0.36%	0.16%
+", sep = "\t", as.is = TRUE, header = TRUE, check.names = FALSE) %>%
+  gather(fill, y, -FY, factor_key = TRUE) %>%
+  mutate(fill = factor(fill, ordered = TRUE), 
+         x = factor(FY, ordered = TRUE),
+         y = as.numeric(gsub("%", "", as.character(y)))) %>%
+  stacked_bar_with_right_labels(scale_y_args = list(labels = function(x) paste0(x, "%"), expand = c(0,0), limits = c(0, 2.5)), 
+                                scale_x_args = list(labels = function(x) ifelse(as.character(x) %in% as.character(seq(1987, 
+                                                                                                                      2012, 
+                                                                                                                      by = 5)), 
+                                                                                as.character(x), "")), 
+                                right_margin = 13.1,
+                                text_family = "helvet",
+                                theme.args = list(panel.grid.major.y = element_line(), axis.title.x = element_blank()))
+@
+
+<<Figure15, fig.showtext=TRUE>>=
+read.table(text="x	y
+2014-15	0
+2015-16	2
+2016-17	3
+2017-18	4
+2018-19	4
+2019-20	4
+2020-21	10
+2021-22	8
+2022-23	8
+2023-24	11
+2024-25	11
+2025-26	11
+2026-27	14
+2027-28	14
+2028-29	17
+2029-30	18
+2030-31	21
+2031-32	22
+2032-33	25
+2033-34	28
+2034-35	26
+2035-36	30
+2036-37	34
+2037-38	35
+2038-39	36
+2039-40	40
+2040-41	41
+2041-42	43
+2042-43	47
+2043-44	49
+2044-45	50
+2045-46	51
+2046-47	52
+2047-48	58
+2048-49	59
+2049-50	65
+2050-51	67
+2051-52	68
+2052-53	70
+2053-54	76
+2054-55	78
+", sep = "\t", header = TRUE) %>% 
+  mutate(xlabs = ifelse(1:n() %% 5 == 1, as.character(x), ""), 
+         year = fy2yr(x)) %>%
+  {
+    grplot(., aes(x = year, y = y)) + 
+      theme_hugh(base_family = "helvet") + 
+      geom_bar(stat = "identity") + 
+      scale_y_continuous(expand = c(0,0), limits = c(0, 80), label = function(x) paste0("$", x, "\u2009", "bn")) +
+      scale_x_continuous(expand = c(0,0.6), breaks = c(2015, seq(2020, 2050, by = 10))) + 
+      theme(axis.title.x = element_blank())
+  }
+@
+
+\end{document}

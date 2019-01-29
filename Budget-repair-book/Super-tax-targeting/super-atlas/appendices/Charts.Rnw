@@ -1,0 +1,213 @@
+\documentclass{article}
+
+
+\begin{document}
+
+<<knitrOpts, echo=FALSE>>=
+library(knitr)
+tikzLarge <- function(file, width, height){
+  tikzDevice::tikz(file= file, width = width, height, height = height, 
+                   pointsize = 23, lwdUnit=72.27, standAlone=TRUE)
+}
+
+# knitr chunk opts
+# fig.width must = out.width and same for *.height
+knitr::opts_chunk$set(fig.width=11.000, fig.height=7.00, 
+                      out.width="11.000in", out.height="7.00in", 
+                      fig.show='hide',echo=FALSE,
+                      message=FALSE, warning=FALSE
+                      ,cache=FALSE
+)
+@
+
+<<loadPackages>>=
+library(data.table)
+library(dplyr)
+library(magrittr)
+library(readr)
+library(tidyr)
+library(readxl)
+library(grattan)
+library(ggplot2)
+library(scales)
+@
+
+% Figure A.1
+<<a1>>=
+a1 <- 
+  read_excel("Figure-A-1.xlsx") %>%
+  mutate(`Taxable Income` = factor(`Taxable Income`, 
+                                   levels = unique(.$`Taxable Income`), 
+                                   ordered = TRUE), 
+         Age = factor(Age, levels = unique(.$Age), ordered = TRUE))
+@
+
+<<A_1, out.width="9.557in", fig.width=9.557, out.height="5.452in", fig.height=5.452>>=
+tax_brackets_by_marginal_rate <- 
+  data.table(marginal.tax.rate = c(0, 0.19, 0.345, 0.39, 0.47), 
+             `Taxable Income` = c("Less than $18,200", 
+                                  "$18,200-$37,000", 
+                                  "$37,000-$80,000", 
+                                  "$80,000-$180,000", 
+                                  "$180,001+")) %>%
+  mutate(`Taxable Income` = factor(`Taxable Income`, 
+                                   levels = c("Less than $18,200", 
+                                              "$18,200-$37,000", 
+                                              "$37,000-$80,000", 
+                                              "$80,000-$180,000", 
+                                              "$180,001+"), 
+                                   labels = c("< $18,200", 
+                                              "\n$18,200-$37,000", 
+                                              "$37,000-$80,000", 
+                                              "\n$80,000-$180,000", 
+                                              "$180,001+"),
+                                   ordered = TRUE))
+
+every_second_newline <- function(x){
+  x[seq(0L, length(x), by = 2L)] <- paste0("\n", x[seq(0L, length(x), by = 2L)])
+  x
+}
+
+dash_border_newline <- function(x){
+  gsub("Less than ", 
+       "Less\nthan\n", 
+       gsub(" or more", "\nor\nmore", gsub("-", "\nto\n", x)))
+}
+
+a1 %>%
+  gather(fill, y, -Age, -`Taxable Income`, factor_key = TRUE) %>%
+  filter(!grepl("Non-concessional", fill)) %>%
+  {
+    grplot(., aes(x = `Taxable Income`, y = y, fill = fill)) + 
+      geom_bar(stat = "identity") +
+      theme_hugh(base_size = 10) + 
+      theme(strip.text = element_text(size = 11, face = "bold"), 
+            strip.background = element_blank()) + 
+      scale_x_discrete(label = dash_border_newline) +
+      scale_y_continuous(label = grattan_dollar, expand = c(0,0), limits = c(0, 21e3)) + 
+      guides(fill = guide_legend(reverse = TRUE)) + 
+      facet_wrap(~Age, ncol=3) + 
+      theme(legend.position = c(0,1), 
+            plot.margin = unit(c(0,0,0,0), "pt"),
+            legend.margin = unit(0, "pt"),
+            legend.justification = c(0,1), 
+            legend.text = element_text(size = 10),
+            legend.title = element_blank())
+  }
+@
+
+<<A8, out.width="9.557in", fig.width=9.557, out.height="5.452in", fig.height=5.452>>=
+a1 %>%
+  gather(fill, y, -Age, -`Taxable Income`, factor_key = TRUE) %>%
+  # filter(!grepl("Non-concessional", fill)) %>%
+  {
+    grplot(., aes(x = `Taxable Income`, y = y, fill = fill)) + 
+      geom_bar(stat = "identity") +
+      theme_hugh(base_size = 10) + 
+      theme(strip.text = element_text(size = 11, face = "bold"), 
+            strip.background = element_blank()) + 
+      scale_x_discrete(label = dash_border_newline) +
+      scale_y_continuous(label = grattan_dollar, expand = c(0,0)) +
+      guides(fill = guide_legend(reverse = TRUE)) + 
+      facet_wrap(~Age, ncol=3) + 
+      theme(legend.position = c(0,1), 
+            plot.margin = unit(c(0,0,0,0), "pt"),
+            legend.margin = unit(0, "pt"),
+            legend.justification = c(0,1), 
+            legend.text = element_text(size = 10),
+            legend.title = element_blank())
+  }
+@
+
+
+
+<<A5, dev = c("pdf"), fig.ext = c("pdf")>>=
+a5 <- 
+read.table(text="Income quintile	Under 30	30 to 49	50 to 54	55 to 59	60 to 64	65 to 69	70 and over
+Lowest	0	0	0	1	0	0	0
+2nd	0	3	5	2	7	1	0
+3rd	2	4	7	14	13	2	2
+4th	4	7	18	22	31	16	13
+Highest	7	15	22	35	39	43	14
+", sep = "\t", header = TRUE, check.names = FALSE) 
+setnames(a5, "70 and over", "70 and\nover")
+
+a5 %>%
+  gather(Age, prop, -`Income quintile`, factor_key = TRUE) %>%
+  mutate(`Income quintile` = factor(`Income quintile`, levels = unique(.$`Income quintile`), ordered = TRUE), 
+         prop = prop / 100) %>%
+  grplot(aes(y = `Income quintile`, x = Age, alpha = prop)) + 
+  geom_tile(fill = Orange) + 
+  annotate("rect", 
+           xmin = 4.5, 
+           xmax = 6.5, 
+           ymin = -Inf, 
+           ymax = Inf, 
+           fill = NA,
+           colour = theGrey,
+           alpha = 0.5) + 
+  annotate("segment", 
+           x = 4.525, xend = 6.475, color = theGrey,
+           y = 1, yend = 1, arrow = arrow(angle = 20, length = unit(0.15, "inches"),
+                                          ends = "both", type = "closed")) + 
+  annotate("text", 
+           x = 5.5, 
+           y = 1.125, 
+           vjust = 0, 
+           label = "Super recycling", 
+           size = 20/(14/5)) +
+  scale_y_discrete(expand = c(0,0)) + 
+  # theme(axis.title.y = element_text(face = "bold", angle = 90)) + 
+  scale_alpha_continuous(range = c(0,1), breaks = c(0, 0.25, 0.5), 
+                         label = percent, limits = c(0,0.5)) + 
+  theme(legend.position = "right")
+@
+
+
+<<A5-tikz, dev = c("tikzLarge"), fig.ext = c("tikz")>>=
+latex_percent <- function(x) gsub("%", "\\%", percent(x), fixed = TRUE)
+a5 <- 
+read.table(text="Income quintile	Under 30	30 to 49	50 to 54	55 to 59	60 to 64	65 to 69	70 and over
+Lowest	0	0	0	1	0	0	0
+2nd	0	3	5	2	7	1	0
+3rd	2	4	7	14	13	2	2
+4th	4	7	18	22	31	16	13
+Highest	7	15	22	35	39	43	14
+", sep = "\t", header = TRUE, check.names = FALSE) 
+setnames(a5, "70 and over", "70 and\nover")
+
+a5 %>%
+  gather(Age, prop, -`Income quintile`, factor_key = TRUE) %>%
+  mutate(`Income quintile` = factor(`Income quintile`, levels = unique(.$`Income quintile`), ordered = TRUE), 
+         prop = prop / 100) %>%
+  grplot(aes(y = `Income quintile`, x = Age, alpha = prop)) + 
+  geom_tile(fill = Orange) + 
+  annotate("rect", 
+           xmin = 4.5, 
+           xmax = 6.5, 
+           ymin = -Inf, 
+           ymax = Inf, 
+           fill = NA,
+           colour = theGrey,
+           alpha = 0.5) + 
+  annotate("segment", 
+           x = 4.525, xend = 6.475, color = theGrey,
+           y = 1, yend = 1, arrow = arrow(angle = 20, length = unit(0.15, "inches"),
+                                          ends = "both", type = "closed")) + 
+  annotate("text", 
+           x = 5.5, 
+           y = 1.125, 
+           vjust = 0, 
+           label = "Super recycling", 
+           size = 20/(14/5)) +
+  scale_y_discrete(expand = c(0,0)) + 
+  # theme(axis.title.y = element_text(face = "bold", angle = 90)) + 
+  scale_alpha_continuous(range = c(0,1), breaks = c(0, 0.25, 0.5), 
+                         label = latex_percent, limits = c(0,0.5)) + 
+  theme(legend.position = "right")
+@
+
+
+
+
+\end{document}

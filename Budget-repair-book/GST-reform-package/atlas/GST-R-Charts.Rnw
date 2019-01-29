@@ -1,0 +1,408 @@
+\documentclass[a4paper,landscape]{article}
+\usepackage{geometry}
+\usepackage{graphicx}
+\usepackage{tikz}
+
+\begin{document}
+
+<<knitrOpts, echo=FALSE>>=
+library(tikzDevice)
+
+# knitr chunk opts
+# fig.width must = out.width and same for *.height
+knitr::opts_chunk$set(fig.width=11.000, fig.height=7.00, 
+                      out.width="11.000in", out.height="7.00in",echo=FALSE,
+                      message=FALSE, warning=FALSE, 
+                      dev='pdf'
+                      ,fig.ext = "pdf"
+                      ,cache=FALSE
+)
+@
+
+<<loadPackages>>=
+library(data.table)
+library(dplyr)
+library(magrittr)
+library(readr)
+library(tidyr)
+library(readxl)
+library(grattan)
+library(ggplot2)
+library(scales)
+library(grid)
+library(gridExtra)
+library(cowplot)
+@
+
+<<latex_percent>>=
+latex_percent <- function(x){
+  gsub("%", "\\%", percent(x), fixed = TRUE)
+}
+@
+
+<<GST-Figure-4, out.height="8in", fig.height=8, dev='tikz',eval=FALSE>>=
+GST_figure_4_dat <- 
+  read.table(text="fill 	Lowest	Second	Third	Fourth	Highest	All
+Exempt food	11.0%	10.2%	8.5%	7.9%	6.8%	8.2%
+Health	6.9%	4.8%	5.8%	5.0%	5.0%	5.3%
+Education	1.0%	1.5%	2.2%	2.4%	3.4%	2.5%
+Childcare	0.2%	0.4%	0.5%	0.8%	1.0%	0.7%
+", sep = "\t", header = TRUE, as.is = TRUE) %>%
+  select(-All) %>%
+  gather(Quintile, `Percentage spending`, -fill, factor_key = TRUE) %>%
+  mutate(`Percentage spending` = as.numeric(gsub("%", "", `Percentage spending`)) / 100) %>%
+  mutate(fill = factor(fill, levels = unique(.$fill), ordered = TRUE))  %>%
+  mutate(x = factor(Quintile, 
+                    levels = c("Lowest", 
+                               "Second", 
+                               "Third", 
+                               "Fourth", 
+                               "Highest"), 
+                    labels = c("Lowest\n< \\$35,000", 
+                               "Second\n\\$35,000-\n\\$63,000", 
+                               "Third\n\\$63,000-\n\\$100,000", 
+                               "Fourth\n\\$100,000-\n\\$154,000", 
+                               "Highest\n\\$154,000+"),
+                    ordered = TRUE), y = `Percentage spending`)
+
+stacked_bar_with_right_labels(GST_figure_4_dat, 
+                              barwidth = 0.8,
+                              nudge_up = 0,
+                              scale_x_args = list(name = "Household gross income quintile (2013-14 dollars)"), 
+                              scale_y_args = list(expand = c(0,0), 
+                                                  limits = c(0,0.2), 
+                                                  label = latex_percent), 
+                              theme.args = list(axis.title.x = element_text(margin = margin(11, 0, 5.5, 0, "pt"))))
+
+@
+
+<<GST-Figure-5>>=
+GST_figure_5_dat <- 
+  read.table(text="fill 	Lowest	Second	Third	Fourth	Highest
+Employee income 	8.9	41.2	74.4	89	89.2
+Investment income	12.6	14.1	11.1	6.1	6.9
+Own business income	2.7	4.3	5.6	4.2	3.7
+Welfare 	75.8	40.4	8.9	0.7	0.1
+", sep = "\t", header = TRUE) %>%
+  mutate(fill = gsub("\\sincome\\s*$", "", fill)) %>%
+  gather(Quintile, percentage_households, Lowest:Highest, factor_key = TRUE) %>%
+  mutate(fill = factor(fill, levels = unique(.$fill), ordered = TRUE)) %>%
+  mutate(y = percentage_households / 100) %>%
+  mutate(x = factor(Quintile, 
+                    levels = c("Lowest", 
+                               "Second", 
+                               "Third", 
+                               "Fourth", 
+                               "Highest"), 
+                    labels = c("1", 
+                               "2", 
+                               "3", 
+                               "4", 
+                               "5"),
+                    ordered = TRUE))
+
+stacked_bar_with_right_labels(GST_figure_5_dat, 
+                              scale_x_args = list(name = "Household (gross) income quintile"), 
+                              scale_y_args = list(expand = c(0,0), limits = c(0, 1.025), label = percent), 
+                              coord_cartesian_args = list(ylim = c(0,1.02)), 
+                              nudge_up = c(0, 0,0,0.02))
+@
+
+<<GST-Figure-6>>=
+GST_figure_6_dat <- 
+  read.table(text="fill	Lowest	Second	Third	Fourth	Highest
+Age pensions	196	154	54	24	13
+Family support payments	26	73	80	48	23
+Disability and carer payments	57	73	48	20	13
+Unemployment and study payments	26	28	23	10	7
+Rental assistance	11	12	10	4	2
+Other	10	9	1	1	5
+", sep = "\t", header = TRUE) %>%
+  mutate(fill = gsub("\\sincome\\s*$", "", fill)) %>%
+  gather(Quintile, percentage_households, Lowest:Highest, factor_key = TRUE) %>%
+  mutate(fill = factor(fill, levels = unique(.$fill), ordered = TRUE)) %>%
+  mutate(y = percentage_households) %>%
+  mutate(x = factor(Quintile, 
+                    levels = c("Lowest", 
+                               "Second", 
+                               "Third", 
+                               "Fourth", 
+                               "Highest"), 
+                    labels = c("1", 
+                               "2", 
+                               "3", 
+                               "4", 
+                               "5"),
+                    ordered = TRUE)) 
+
+GST_figure_6_dat %>%
+  grplot(aes(x = x, y = y, fill = fill)) + 
+  geom_bar(stat = "identity", position = "stack") + 
+  scale_y_continuous(expand = c(0,0), limits = c(0, 400), label = grattan_dollar) + 
+  xlab("Household (gross) income quintile") + 
+  # annotate("text", 
+  #          x = 4.5, 
+  #          y = 375, 
+  #          label = "Payment type", 
+  #          fontface = "bold",
+  #          size = 20/(14/5)) + 
+  annotate("rect", 
+           xmin = 3.6, xmax = 5.4, 
+           ymin = seq(240, by = 25, length.out = 6) + 12.5, 
+           ymax = seq(240, by = 25, length.out = 6) - 12.5, 
+           colour = "black",
+           fill = gpal(6)) + 
+  annotate("text", 
+           x = 4.5, 
+           y = seq(240, by = 25, length.out = 6), 
+           vjust = 0.5,
+           label = c("Age pension", 
+                     "Family support", 
+                     "Disability / carer payments",
+                     "Unemployment & study", 
+                     "Rental assistance", 
+                     "Other"), 
+           colour = c("white", rep("black", 5)), 
+           size = 18/(14/5)) 
+@
+
+<<GST-Figure-7>>=
+# GST_figure_7_dat <- 
+  read.table(text="Income quintile	75% compensated	100% (fully) compensated	125% compensated
+1	75.9%	67.4%	57.8%
+2	59.2%	45.4%	34.2%
+3	20.6%	11.3%	6.2%
+4	1.8%	0.5%	0.4%
+5	0.6%	0.2%	0.0%
+", sep = "\t", header = TRUE, as.is = TRUE, strip.white = FALSE, check.names = FALSE) %>%
+  mutate_each(funs(as.character)) %>%
+  gather(Threshold, percent_compensated, -`Income quintile`, factor_key = TRUE) %>%
+  mutate(percent_compensated = as.numeric(gsub("%", "", percent_compensated)) / 100) %>%
+  mutate(x = factor(`Income quintile`)) %>%
+  grplot(aes(x = x, y = percent_compensated, fill = Threshold)) + 
+  geom_bar(stat = "identity", position = "dodge") + 
+  scale_y_continuous(expand = c(0,0), limits = c(0, 0.8), label = percent) + 
+  xlab("Gross income quintile") + 
+  # legend
+  annotate("text", 
+           x = 3, 
+           y = c(0.7, 0.65, 0.6)+ 0.05, 
+           label = c("75% compensated",	"100% (fully) compensated",	"125% compensated"),
+           vjust = 0.5, 
+           hjust = 0,
+           fontface = "bold", 
+           colour = gpal(3),
+           size = 20/(14/5)) + 
+  theme(panel.grid.major.y = element_line()) 
+@
+
+<<GST-Figure-9>>=
+read.table(text="Income quintile	75% compensated	100% (fully) compensated	125% compensated
+1	75.5%	66.7%	56.8%
+2	66.5%	52.0%	39.9%
+3	56.2%	39.5%	23.8%
+4	53.5%	31.5%	18.5%
+5	43.2%	23.1%	12.9%
+",sep = "\t", header = TRUE, as.is = TRUE, strip.white = FALSE, check.names = FALSE) %>%
+  mutate_each(funs(as.character)) %>%
+  gather(Threshold, percent_compensated, -`Income quintile`, factor_key = TRUE) %>%
+  mutate(percent_compensated = as.numeric(gsub("%", "", percent_compensated)) / 100) %>%
+  mutate(x = factor(`Income quintile`)) %>%
+  grplot(aes(x = x, y = percent_compensated, fill = Threshold)) + 
+  geom_bar(stat = "identity", position = "dodge") + 
+  scale_y_continuous(expand = c(0,0), limits = c(0, 0.8), label = percent) + 
+  xlab("Gross income quintile") + 
+  # legend
+  annotate("text", 
+           x = 3, 
+           y = c(0.7, 0.65, 0.6)+ 0.05, 
+           label = c("75% compensated",	"100% (fully) compensated",	"125% compensated"),
+           vjust = 0.5, 
+           hjust = 0,
+           fontface = "bold", 
+           colour = gpal(3),
+           size = 20/(14/5)) + 
+  theme(panel.grid.major.y = element_line()) 
+@
+
+<<GST-Figure-10>>=
+grattan_waterfall(labels = c("Housing", "Transport", "VET /\nskills", "Other\nhealth", "Schools", "Hospitals"), 
+                  values = c(1962.3, 5692.8, 1823.9, 1643.9, 14775.7, 14625.4)/1000,
+                  rect_text_labels = c(2, 6, 2, 2, 15, 15), 
+                  rect_text_size = 20/(14/5),
+                  put_rect_text_outside_when_value_below = 5,
+                  dark = TRUE, 
+                  ggplot_object_name = "Size_grants_waterfall")
+
+Size_grants_waterfall <- 
+  Size_grants_waterfall + 
+  scale_y_continuous(expand = c(0,0), limits = c(0, 45), breaks = c(0, 15, 30, 45)) +
+  scale_x_discrete(expand = c(0, 0.5), 
+                   breaks = c("Housing", "Transport", "VET /\nskills", "Other\nhealth", "Schools", "Hospitals"),
+                   limits = c("Housing", "Transport", "VET /\nskills", "Other\nhealth", "Schools", "Hospitals")) + 
+  theme_hugh(base_size = 22) + 
+  theme(axis.line.y = element_blank(),
+        axis.title.x = element_blank(),
+        panel.grid.major.y = element_line(),
+        axis.ticks.y = element_blank(), 
+        axis.text.y = element_blank()) + 
+  annotate("text", 
+           label = "Size of current\nCommonwealth\nuntied grants", 
+           x = 3.5, 
+           y = 44, 
+           hjust = 0.5, 
+           fontface = "bold",
+           lineheight = 1,
+           vjust = 1, 
+           size = 20/(14/5), 
+           color = gpal(2)[2])
+
+Size_potential_increases_tied_grants <- 
+  data_frame(x = factor(c("GST\nbroaden", "GST\nincrease"), ordered = TRUE), y = c(12, 22)) %>%
+  grplot(aes(as.numeric(x), y)) + 
+  geom_bar(stat = "identity", width = 0.7, fill = gpal(2)[1]) + 
+  scale_y_continuous(expand = c(0,0), limits = c(0, 45), breaks = c(0, 15, 30, 45)) + 
+  scale_x_continuous(limits = c(0.5, 2.5), breaks = 1:2, labels = c("GST\nbroaden", "GST\nincrease"),
+                     expand = c(0,0)) +
+  theme_hugh(base_size = 22) + 
+  theme(panel.grid.major.y = element_line(), 
+        axis.title.x = element_blank()) + 
+  annotate("text", 
+           label = "Size of potential\nCommonwealth\nincreases\nto untied grants", 
+           x = 1.5, 
+           y = 44, 
+           hjust = 0.5, 
+           fontface = "bold",
+           lineheight = 1,
+           vjust = 1, 
+           size = 20/(14/5), 
+           color = gpal(2)[1])
+
+grid.arrange(Size_potential_increases_tied_grants, Size_grants_waterfall, ncol = 2, 
+             widths = c(2.6-0.4, 6.5 - 0.5))
+@
+
+<<GST-Figure-11>>=
+grattan_waterfall(values = c(27, -16, -27, 22), 
+                  labels = c("Extra\nGST\nrevenue", 
+                             "Compo\n(welfare +\ntax cut)", 
+                             "GST\ntransfer to\nStates", 
+                             "Reduction\nin tied\ngrants"),
+                  lines_anchors = c("right", "left"),
+                  calc_total = TRUE, 
+                  total_axis_text = "Net", 
+                  ggplot_object_name = "Fig11_Cth_View") 
+Fig11_Cth_View <- 
+  Fig11_Cth_View  +
+  ylab("Cth\nview") + 
+  scale_y_continuous("Cth\nview", expand = c(0,0), limits = c(-20, 30)) + 
+  theme_hugh() + 
+  theme(axis.title.x = element_blank(), 
+        axis.text.x = element_text(margin = margin(0.7, 0, 0, 0, "lines")),
+        axis.title.y = element_text(angle = 0, hjust = 1, margin = margin(5,5,5,5, "pt"),  face = "bold"))
+
+grattan_waterfall(values = c(0, 0, 27, -22), 
+                  labels = c("Extra\nGST\nrevenue", 
+                             "Compo\n(welfare +\ntax cut)", 
+                             "GST\ntransfer to\nStates", 
+                             "Reduction\nin tied\ngrants"),
+                  lines_anchors = c("right", "left"),
+                  calc_total = TRUE, 
+                  rect_text_labels = c(NA_character_, NA_character_, 27, paste0("\U2212", 22)),
+                  total_axis_text = "Net", 
+                  ggplot_object_name = "Fig11_State_View")
+
+Fig11_State_View <- 
+  Fig11_State_View + 
+  ylab("State\nview") + 
+  scale_y_continuous("State\nview", expand = c(0,0), limits = c(0, 40)) + 
+  theme_hugh() + 
+  theme(axis.text.x = element_blank(), 
+        axis.title.x = element_blank(),
+        plot.margin = grid::unit(c(0.7,0.1,0.5,0.00), "lines"),
+        axis.title.y = element_text(angle = 0, hjust = 1, margin = margin(5,5,5,5, "pt"),  face = "bold"))
+
+grid.arrange(Fig11_Cth_View, Fig11_State_View, ncol = 1, heights = c(50, 40))
+@
+
+<<cowplot>>=
+plot_grid(Fig11_Cth_View, Fig11_State_View, ncol = 1, align = "v", rel_heights = c(50+10, 40+10))
+@
+
+<<gtable>>=
+g.cth <- ggplotGrob(Fig11_Cth_View)
+g.sta <- ggplotGrob(Fig11_State_View)
+@
+
+<<baptiste, fig.show='hide'>>=
+Fig11_State_View <- 
+  Fig11_State_View + 
+  theme(axis.title.y = element_text(angle = 0, 
+                                    hjust = 1, 
+                                    # margin set to 11 to align y-axes
+                                    margin = margin(5,11,5,5, "pt"),  face = "bold"))
+
+set_panel_size <- function(p=NULL, g=ggplotGrob(p), file=NULL, 
+                           margin = unit(0,"mm"),
+                           width=unit(3, "cm"), height=unit(2, "cm")){
+
+  panels <- grep("panel", g$layout$name)
+  panel_index_w<- unique(g$layout$l[panels])
+  panel_index_h<- unique(g$layout$t[panels])
+  nw <- length(panel_index_w)
+  nh <- length(panel_index_h)
+
+  # the following conversion is necessary
+  # because there is no `[<-`.unit method
+  # so promoting to unit.list allows standard list indexing
+  g$widths <- grid:::unit.list(g$widths)
+  g$heights <- grid:::unit.list(g$heights)
+
+  g$widths[panel_index_w] <-  rep(list(width), nw)[[1]]
+  g$heights[panel_index_h] <-  rep(list(height), nh)[[1]]
+  class(g) <- c("fixed", class(g), "ggplot")
+  if(!is.null(file))
+   ggsave(file, g, 
+          width = convertWidth(sum(g$widths) + margin, unitTo = "in", valueOnly = TRUE),
+          height = convertHeight(sum(g$heights) + margin, unitTo = "in", valueOnly = TRUE))
+
+  g
+}
+
+set_panel_height <- function(p=NULL, g=ggplotGrob(p), file=NULL, 
+                             margin = unit(0,"mm"),
+                             width="11in", height=unit(2, "cm")){
+
+  panels <- grep("panel", g$layout$name)
+  panel_index_w<- unique(g$layout$l[panels])
+  panel_index_h<- unique(g$layout$t[panels])
+  nw <- length(panel_index_w)
+  nh <- length(panel_index_h)
+
+  # the following conversion is necessary
+  # because there is no `[<-`.unit method
+  # so promoting to unit.list allows standard list indexing
+  g$heights <- grid:::unit.list(g$heights)
+
+  g$heights[panel_index_h] <-  rep(list(height), nh)[[1]]
+  class(g) <- c("fixed", class(g), "ggplot")
+  if(!is.null(file))
+   ggsave(file, g, 
+          width = convertWidth(sum(g$widths) + margin, unitTo = "in", valueOnly = TRUE),
+          height = convertHeight(sum(g$heights) + margin, unitTo = "in", valueOnly = TRUE))
+
+  g
+}
+
+set_panel_size(g = ggplotGrob(Fig11_Cth_View),   width = unit(9.58173, "inches"), height = unit(5, "inches"), file = "Figure-11-Cth-baptiste.pdf")
+set_panel_size(Fig11_State_View, width = unit(9.58173, "inches"), height = unit(4, "inches"), file = "Figure-11-State-baptiste.pdf")
+@
+
+
+
+\phantom{.}
+
+
+
+
+\end{document}

@@ -1,0 +1,205 @@
+\documentclass[11pt,a4paper,twocolumn,landscape]{scrreprt}
+
+%\usepackage{booktabs}
+\usepackage{xcolor}
+\definecolor{Orange}{HTML/cmyk}{F68B33/0,0.435,0.7927,0.0353}
+\definecolor{DarkOrange}{HTML/cmyk}{D4582A/0,0.5849,0.8019,0.1686}
+\definecolor{OrangeBackground}{RGB}{254,240,222}  % for boxes
+\definecolor{Color1}{RGB}{255,224,127}
+\definecolor{Color2}{RGB}{255,195,90}
+\definecolor{Color3}{RGB}{246,139,51}
+\definecolor{Color4}{RGB}{212,88,42}
+\definecolor{Color5}{RGB}{160,34,38}
+\definecolor{Color6}{RGB}{98,18,20}
+\definecolor{theGrey}{HTML}{6A737B}
+\definecolor{AuthorPage}{RGB}{160,34,38}
+\definecolor{AuthorGrey}{RGB}{174,174,174}
+
+\usepackage{array}
+\usepackage{colortbl}
+\usepackage{tabularx}
+
+\usepackage[scaled]{helvet}
+\renewcommand{\familydefault}{\sfdefault}
+
+\usepackage[left=2.5cm,right=2.5cm]{geometry}
+\usepackage{etoolbox}
+\AtBeginEnvironment{tabularx}{\footnotesize\relax}
+
+
+
+\usepackage{adjustbox,lipsum}
+\usepackage{booktabs}
+
+
+\newlength\Origarrayrulewidth
+\newlength\Origbelowrulesep
+\newlength\Origaboverulesep
+
+% horizontal rule equivalent to \cline but with 2pt width
+\newcommand{\ClineDarkOrange}[1]{%
+ \noalign{\global\setlength\Origarrayrulewidth{\arrayrulewidth}}%
+ \noalign{\global\setlength\Origbelowrulesep{\belowrulesep}}%
+ \noalign{\global\setlength\Origaboverulesep{\aboverulesep}}%
+ \noalign{\global\setlength\belowrulesep{0pt}}%
+ \noalign{\global\setlength\aboverulesep{0pt}}%
+ \noalign{\global\setlength\arrayrulewidth{0pt}}\arrayrulecolor{DarkOrange}\cmidrule[1pt](l{-1pt}){#1}%
+ \noalign{\global\setlength\arrayrulewidth{\Origarrayrulewidth}}%
+ \noalign{\global\setlength\belowrulesep{\Origbelowrulesep}}%
+ \noalign{\global\setlength\aboverulesep{\Origaboverulesep}}%
+}
+
+\newcommand{\ClineOrange}[1]{%
+ \noalign{\global\setlength\Origarrayrulewidth{\arrayrulewidth}}%
+ \noalign{\global\setlength\Origbelowrulesep{\belowrulesep}}%
+ \noalign{\global\setlength\Origaboverulesep{\aboverulesep}}%
+ \noalign{\global\setlength\belowrulesep{0pt}}%
+ \noalign{\global\setlength\aboverulesep{-1pt}}%
+ \noalign{\global\setlength\arrayrulewidth{0pt}}\arrayrulecolor{Orange}\cmidrule[1pt](l{-1pt}){#1}%
+ \noalign{\global\setlength\arrayrulewidth{\Origarrayrulewidth}}%
+ \noalign{\global\setlength\belowrulesep{\Origbelowrulesep}}%
+ \noalign{\global\setlength\aboverulesep{\Origaboverulesep}}%
+}
+
+\usepackage{ragged2e}
+\usepackage{mdframed}
+
+
+\begin{document}
+
+
+\lipsum[1]
+\clearpage
+\begin{table}
+\begin{tabularx}{\linewidth}{X@{}!{\color{DarkOrange}\vrule width 1pt}>{\RaggedRight\arraybackslash}p{0.40\columnwidth}!{\color{DarkOrange}\vrule width 1pt}@{}m{1mm}@{}!{\color{Orange}\vrule width 1pt}>{\RaggedRight\arraybackslash}p{0.30\columnwidth}!{\color{Orange}\vrule width 1pt}m{0pt}@{}}
+& \cellcolor{DarkOrange}{\adjustbox{valign=m, center, padding=0ex 0ex 2ex 2ex}{\textbf{Accumulation}}} & & \cellcolor{Orange}{\adjustbox{valign=m, center}{\textbf{Benefits}}} & \\[0.5\baselineskip] 
+& & & & \\[-8pt]
+Contributions & \begin{tabular}[t]{@{}>{\raggedright}p{0.975\linewidth}@{}}
+				Under the Super Guarantee, employers must contribute 9.5\%\ %
+				of a person's earnings to their super \\[0.5\baselineskip]
+				Individuals can make additional voluntary
+				contributions \\[0.5\baselineskip]
+				Contributions (up to cap of \$30k or \$35k\,/\,yr)
+				are from pre-tax income and taxed at
+				concessional rate of 15\% in the fund \\[0.5\baselineskip]
+				Further contributions can be made from
+				post-tax income (up to cap of \$180k\,/\,yr),
+				and are not taxed again in the fund \end{tabular}  & 	& 	\begin{tabular}[t]{@{}>{\RaggedRight}p{0.975\linewidth}}%
+																			Employers and
+																			employees can continue
+																			to contribute on same
+																			basis as in accumulation phase \\[0.5\baselineskip]
+																			%
+																			Individuals can only make voluntary contributions beyond 
+																			age 64 if still in paid work
+																			\end{tabular} & \\
+& & & & \\
+Earnings & \begin{tabular}[t]{@{}>{\RaggedRight}p{0.975\linewidth}@{}}
+			Superannuation funds are invested, earning returns \\[0.5\baselineskip]
+			These earnings are taxed at 15\%\ in the fund
+			(10\%\ for capital gains)
+			\end{tabular} &  & \begin{tabular}[t]{@{}>{\RaggedRight}p{0.975\linewidth}}%
+								Funds continue to earn
+								returns \\[0.5\baselineskip]
+								Earnings are not taxed
+								\end{tabular} & \\
+& & & & \\
+Payout 	& \begin{tabular}[t]{@{}>{\RaggedRight}p{0.975\linewidth}@{}}
+			Ordinarily, funds cannot be drawn until reaching preservation age (55 years) \\[0.5\baselineskip]
+			Most payouts become tax-free from age 60 
+			\end{tabular} & & \begin{tabular}[t]{@{}>{\RaggedRight}p{0.975\linewidth}@{}}
+								The super fund pays out from accumulated funds  \\[0.5\baselineskip]
+								Payouts are not taxed from age 60
+								\end{tabular} & \\
+& & & & \\[0pt]
+\ClineDarkOrange{2-2}\ClineOrange{4-4} 
+\end{tabularx}
+\end{table}
+\clearpage
+\newpage%
+
+\lipsum[1-3]
+\clearpage
+
+\mdfdefinestyle{Accumulation}{%
+	linecolor=DarkOrange,linewidth=1pt,%
+	frametitlealignment=\centering,
+	frametitlefont=\small\color{white},
+	frametitlerule=true,%
+	innerleftmargin=3.5pt,
+	innerrightmargin=3.5pt,
+	frametitlebackgroundcolor=DarkOrange,
+	innertopmargin=3.5pt
+}
+
+\mdfdefinestyle{Benefits}{%
+	linecolor=Orange,linewidth=1pt,%
+	frametitlerule=true,%
+	frametitlealignment=\centering,
+	frametitlefont=\small\color{white},
+	frametitlebackgroundcolor=Orange,
+	innerleftmargin=3.5pt,
+	innerrightmargin=3.5pt,
+	innertopmargin=3.5pt
+}
+
+\begin{minipage}[t]{0.05\columnwidth}
+\scriptsize
+\begin{tabular}[t]{@{}>{\bfseries}p{\linewidth}@{}}
+\\[2\baselineskip]
+Contributions \\[13.5\baselineskip]
+Earnings \\[5.5\baselineskip]
+Withdrawals
+\end{tabular}
+\end{minipage}
+\hfill
+\begin{minipage}[t]{0.50\columnwidth}
+\begin{mdframed}[style=Accumulation,frametitle=Accumulation]
+\scriptsize
+\begin{tabular}[t]{@{}>{\raggedright}p{\linewidth}@{}b{0pt}@{}}
+				Under the Super Guarantee, employers must contribute 9.5\%\ %
+				of a person's earnings to their super \\[0.5\baselineskip]
+				Individuals can make additional voluntary
+				contributions \\[0.5\baselineskip]
+				Contributions (up to cap of \$30k or \$35k\,/\,yr)
+				are from pre-tax income and taxed at
+				concessional rate of 15\% in the fund \\[0.5\baselineskip]
+				Further contributions can be made from
+				post-tax income (up to cap of \$180k\,/\,yr),
+				and are not taxed again in the fund \\[2\baselineskip]
+				%
+Superannuation funds are invested, earning
+returns \\[0.5\baselineskip]
+These earnings are taxed at 15\% in the fund
+(10\% for capital gains)  \\[2\baselineskip]
+Ordinarily, funds cannot be drawn until reaching preservation age (55 years) \\[0.5\baselineskip]
+Most payouts become tax-free from age 60 \\[2\baselineskip]
+\end{tabular}
+\end{mdframed}
+\end{minipage}
+\hfil
+\begin{minipage}[t]{0.30\columnwidth}
+\begin{mdframed}[style=Benefits,frametitle=Benefits]
+\scriptsize
+\begin{tabular}[t]{@{}b{\linewidth}@{}b{0pt}@{}}
+\begin{tabular}[t]{@{}>{\RaggedRight}b{\linewidth}}%
+																			Employers and
+																			employees can continue
+																			to contribute on same
+																			basis as in accumulation phase \\[0.5\baselineskip]
+																			%
+																			Individuals can only make voluntary contributions beyond 
+																			age 64 if still in paid work \\[6\baselineskip]
+%
+Funds continue to earn returns \\[0.5\baselineskip]
+Earnings are not taxed \\[3\baselineskip]
+%
+The super fund pays out from accumulated funds  \\[0.5\baselineskip]
+Payouts are not taxed from age 60
+\end{tabular} & 
+\end{tabular}
+\end{mdframed}
+\end{minipage}
+
+
+\end{document}

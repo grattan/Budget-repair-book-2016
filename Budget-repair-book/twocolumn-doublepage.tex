@@ -1,0 +1,48 @@
+\documentclass[b5paper,twoside,parskip=half-]{scrbook}
+\usepackage{adjustbox}
+\usepackage{multicol}
+
+\usepackage{lipsum}
+
+\newlength{\innerMargin}
+\setlength{\innerMargin}{3cm}
+\usepackage[inner=\innerMargin]{geometry}
+
+\newlength{\currentparskip}
+
+\makeatletter
+\newcommand{\twopager}[1]{%
+\setlength{\currentparskip}{\parskip}
+	\cleardoubleevenstandardpage
+	\adjustbox{trim=0 0 {\textwidth} 0, clip}{%
+	\begin{minipage}{2\textwidth}
+	\setlength{\parskip}{\currentparskip}
+	\addchap{Title}
+	\setlength{\columnsep}{\innerMargin}
+	\begin{multicols}{2}
+	#1
+	\end{multicols}
+	\end{minipage}
+	}%
+\cleardoublepage
+	\adjustbox{trim={\textwidth} 0 0 0, clip}{%
+	\begin{minipage}{2\textwidth}
+	\setlength{\parskip}{\currentparskip}
+	\addchap{Title}
+	\setlength{\columnsep}{\innerMargin}
+	\begin{multicols}{2}
+	#1
+	\end{multicols}
+	\end{minipage}
+}%
+\cleardoublepage
+}
+\makeatother
+
+\begin{document}
+\lipsum
+
+\twopager{\lipsum[1-5]}
+
+\lipsum
+\end{document}
